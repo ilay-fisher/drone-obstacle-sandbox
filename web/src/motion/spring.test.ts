@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SPRING_SNAPPY, SPRING_SOFT, dampingRatio, isAtRest, prefersReducedMotion, settleTime,
-  springEase, springStep, springToLinear, stepResponse, tween,
+  springEase, springStep, springStepMut, springToLinear, stepResponse, tween,
 } from './spring';
 
 /** Largest value of the step response over twice its settle window, as a fraction above 1. */
@@ -126,6 +126,21 @@ describe('tween', () => {
     const n = seen.length;
     r.step(16);
     expect(seen.length).toBe(n);
+  });
+});
+
+describe('springStepMut', () => {
+  it('matches springStep but mutates in place', () => {
+    const a = springStep({ x: 0, v: 3 }, 1, 0.016, SPRING_SOFT);
+    const s = { x: 0, v: 3 };
+    springStepMut(s, 1, 0.016, SPRING_SOFT);
+    expect(s.x).toBeCloseTo(a.x, 12);
+    expect(s.v).toBeCloseTo(a.v, 12);
+  });
+  it('leaves a spring at rest on its target untouched', () => {
+    const s = { x: 2, v: 0 };
+    springStepMut(s, 2, 0.016, SPRING_SNAPPY);
+    expect(s).toEqual({ x: 2, v: 0 });
   });
 });
 

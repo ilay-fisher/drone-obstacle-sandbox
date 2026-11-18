@@ -24,6 +24,8 @@ export interface Palette {
   windFill: string;
   windStroke: string;
   stage: string;
+  /** Status-only green (`--pass`): the landed pad lamp. */
+  pass: string;
   /** Ember shade of the accent (`--paint-deep`): the D* Lite repair light at rest. */
   ember: string;
 }
@@ -65,6 +67,7 @@ export function buildPalette(get: (name: string) => string): Palette {
     wall: t('--wall'),
     stage: t('--stage'),
     ember: t('--paint-deep'),
+    pass: t('--pass'),
     dot: rgba(text, 0.1),
     heat: Array.from({ length: 256 }, (_, i) => rgba(text, Number((0.05 + 0.13 * Math.min(1, i / 6)).toFixed(3)))),
     route: t('--paint'),
