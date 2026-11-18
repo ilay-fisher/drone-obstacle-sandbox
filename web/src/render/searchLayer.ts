@@ -32,6 +32,7 @@ import { parseHex } from './mapPalette';
 import type { DrawOpts, RenderView } from './renderTypes';
 import { chipLayout, placeChip as placeChipBox, type Rect } from './chipPlacement';
 import { FINISHED, TOTAL_MS, chipText, chipTextCompact, replanPhases, type Phases } from './replanTimeline';
+import { DSTAR_REST_MIX, GLOW_COMPOSITE, REST_GLOW_CAP } from './searchTone';
 import { arcLengths, cellCentres, pointAt, smoothRoute, subCurveEnd, type Curve } from './routeCurve';
 
 /** Radius (in cells) of the resting-glow sprite and of the brighter rim sprite. */
@@ -41,7 +42,7 @@ const RIM_R = 1.45;
 const RIM_BAND = 0.13;
 /** Sprite alpha per cell: A* spreads over many cells so it is dim per cell; the D* repair is small, so hotter. */
 const REST_PEAK = { astar: 0.2, dstar: 0.8 };
-const RIM_PEAK = { astar: 0.3, dstar: 0.6 };
+const RIM_PEAK = { astar: 0.3, dstar: 0.5 };
 
 interface Sprite { canvas: HTMLCanvasElement; r: number }
 interface ModeSprites { rest: Sprite; rim: Sprite }
@@ -119,7 +120,7 @@ class SearchShow {
     const orange = parseHex(pal.route) ?? [255, 90, 31];
     const amber = parseHex(pal.goal) ?? [255, 179, 71];
     // D* Lite: ember at rest, orange on the rim, so a repair reads as a small hot spot.
-    const emberRest = ember.map((c, i) => Math.round(c + (orange[i] - c) * 0.8)) as [number, number, number];
+    const emberRest = ember.map((c, i) => Math.round(c + (orange[i] - c) * DSTAR_REST_MIX)) as [number, number, number];
     this.astar = { rest: glowSprite(white, REST_R * cell, dpr), rim: glowSprite([255, 250, 240], RIM_R * cell, dpr) };
     this.dstar = { rest: glowSprite(emberRest, REST_R * 1.6 * cell, dpr), rim: glowSprite(orange, RIM_R * 1.6 * cell, dpr) };
     this.head = glowSprite(amber, 2.2 * cell, dpr, 0.5);
@@ -128,6 +129,14 @@ class SearchShow {
     this.accCtx?.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.accCount = 0;
     if (this.ev) this.placeChip(v);
+  }
+
+  /** Swallows pending events without playing them and clears the picture; the next new event plays normally. */
+  mute(sim: Simulation): void {
+    this.seq = sim.replanSeq;
+    this.ev = null;
+    this.chip = null;
+    this.phases = FINISHED;
   }
 
   /** Starts playing a new event when the simulation has produced one since the last frame. */
@@ -175,7 +184,7 @@ class SearchShow {
     const peak = REST_PEAK[ev.mode];
     const { cell, w } = v;
     const f = this.flood;
-    g.globalCompositeOperation = 'lighter';
+    g.globalCompositeOperation = GLOW_COMPOSITE[ev.mode];
     for (let k = this.accCount; k < upTo; k++) {
       const c = f.order[k];
       const hv = ev.heat[c];
@@ -193,7 +202,9 @@ class SearchShow {
     if (!ev || this.flood.count === 0 || !this.acc) return;
     const W = v.w * v.cell;
     const H = v.h * v.cell;
+    ctx.globalAlpha = REST_GLOW_CAP[ev.mode];
     ctx.drawImage(this.acc, 0, 0, W, H);
+    ctx.globalAlpha = 1;
     const front = this.phases.flood;
     if (front >= 1) return;
     const f = this.flood;
@@ -203,7 +214,7 @@ class SearchShow {
     const spr = (ev.mode === 'dstar' ? this.dstar : this.astar).rim;
     const peak = RIM_PEAK[ev.mode] * (front < 0.8 ? 1 : (1 - front) / 0.2);
     const { cell, w } = v;
-    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalCompositeOperation = GLOW_COMPOSITE[ev.mode];
     for (let k = lo; k < hi; k++) {
       const c = f.order[k];
       const t = (f.rank[c] - (front - RIM_BAND)) / RIM_BAND;
@@ -440,6 +451,7 @@ function showFor(sim: Simulation): SearchShow {
 /** The flood: resting glow and the bright front. Honours the heat toggle. */
 export function drawSearchUnder(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, o: DrawOpts, now: number): void {
   const show = showFor(sim);
+  if (o.quiet) { show.mute(sim); return; }
   show.sync(sim, v, now);
   if (!o.showHeat) return;
   show.drawGlow(ctx, v);
@@ -448,6 +460,7 @@ export function drawSearchUnder(ctx: CanvasRenderingContext2D, sim: Simulation, 
 /** The route (dissolving old one, then the new one drawing on) and the chip. */
 export function drawSearchOver(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, o: DrawOpts, now: number): void {
   const show = showFor(sim);
+  if (o.quiet) return;
   show.sync(sim, v, now);
   show.drawDissolve(ctx, v);
   show.drawRoute(ctx, sim, v);

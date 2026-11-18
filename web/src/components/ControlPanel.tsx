@@ -58,6 +58,8 @@ export interface ControlPanelProps {
   onSave: (name: string) => Promise<string>;
   onLoad: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Shows a "?" keycap that replays the guided intro. */
+  onReplayIntro?: () => void;
 }
 
 /** A bevelled tray holding one task group, labelled by an engraved pill. */
@@ -200,6 +202,16 @@ export function ControlPanel(p: ControlPanelProps) {
         </div>
         <Scenarios {...p} />
       </Tray>
+
+      {p.onReplayIntro && (
+        <div className="panel-foot key-stack">
+          <Keycap
+            legend="Intro" label="Show the intro again"
+            icon={<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><text x="12" y="18" textAnchor="middle" fontSize="19" fontWeight="700" fill="currentColor" fontFamily="var(--font-mono)">?</text></svg>}
+            onClick={p.onReplayIntro}
+          />
+        </div>
+      )}
     </div>
   );
 }

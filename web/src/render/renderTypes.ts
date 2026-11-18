@@ -9,6 +9,8 @@ import type { Palette } from './palette';
 export interface DrawOpts {
   showHeat: boolean;
   showLidar: boolean;
+  /** While true the search layer plays no replan events (the intro is still painting the city). */
+  quiet?: boolean;
 }
 
 /** Everything a slot needs to know about the canvas: sizes in CSS px, the DPR and the palette. */
