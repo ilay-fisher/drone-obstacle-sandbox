@@ -41,7 +41,7 @@ Every readout is real. Nothing in `cpp/`, `server/`, the `Planner` interface or 
 
 ## Tests
 
-New: `introScript`, `introCues`, `introStorage`, `introRunner` (fake sim and host, including storage that throws) and the `?` shortcut in `keymap.test.ts`. Committed in a `test:` commit before the implementation. Full suite: 331 tests green; `typecheck` and `build` (also with `VITE_BASE=/drone-obstacle-sandbox/ VITE_DEMO_MODE=true`) green.
+New: `introScript`, `introCues`, `introStorage`, `introRunner` (fake sim and host, including storage that throws) and the `?` shortcut in `keymap.test.ts`. Committed in a `test:` commit before the implementation. Full suite: 341 tests green (round 2 adds `paintBatches`, one-building-per-frame runner tests and `searchTone`); `typecheck` and `build` (also with `VITE_BASE=/drone-obstacle-sandbox/ VITE_DEMO_MODE=true`) green.
 
 ## Frame times
 
@@ -49,8 +49,8 @@ Measured with `?perf=1&intro=1` over the full 16.4 s (intro plus outro), headles
 
 | Engine | frames | interval p50 | p95 | max | work p50 | work p95 | work max |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| C++ Wasm | 996 | 16.7 ms | 16.7 ms | 16.8 ms | 0.2 ms | 1.8 ms | 2.8 ms |
-| TS fallback (`**/*.wasm*` blocked) | 996 | 16.7 ms | 16.7 ms | 16.8 ms | 0.2 ms | 1.7 ms | 3.1 ms |
+| C++ Wasm | 996 | 16.7 ms | 16.8 ms | 16.8 ms | 0.2 ms | 0.8 ms | 3.3 ms |
+| TS fallback (`**/*.wasm*` blocked) | 996 | 16.7 ms | 16.7 ms | 16.8 ms | 0.2 ms | 0.7 ms | 2.8 ms |
 
 (The probe's `over16_7` counter reads about a third of frames because the headless clock ticks exactly 16.7; max is 16.8.)
 
@@ -62,12 +62,18 @@ Measured with `?perf=1&intro=1` over the full 16.4 s (intro plus outro), headles
 
 1. Mobile pill wrapped to two lines and covered the drone and the repair flood. Fixed: 12 px single-line pill, smaller pips, `Esc` hint hidden below 760 px.
 2. The pill covered nothing important at 1440 (bottom centre sits on the lower building row, clear of the route); verified at all four steps.
+3. Review round 1, buildings read as checkerboard noise in step 1. Cause: the intro painted wall cells one by one in a jittered order, so many half-built buildings animated cell by cell, and any frame that changed more than 48 cells snapped without the drop. Fix: `paintBatches` groups walls into whole buildings (4-connected, over-large ones chunked at 40 cells, left to right) and the runner paints one building per frame, so each drops in as a whole rounded block on the snappy spring.
+4. Review round 1, D* repair flood was a saturated yellow-white blob. Cause: the D* resting sprites were added with the `lighter` composite, and overlapping sprites sum to white. Fix: the D* ember now composites with ordinary alpha (`source-over`), the resting sprite is mostly deep ember (`DSTAR_REST_MIX` 0.3), the accumulated glow is capped at 50% opacity, and the rim peak is lowered. A* keeps `lighter` (dim paper-white, cannot reach white). Sprites stay cached, no per-frame gradients. The same code serves a normal D* replan on a user wall (checked: deep orange, modest rim).
+5. Review round 1, reduced-motion card: LiDAR arc is now paper-white, the goal is an orange pad ring, buildings are rounded with a soft drop shadow, and the ember cells are orange. Green is no longer used.
+6. Review round 1, the Intro key is now a full Keycap in the same key-stack style as Reset and Clear, with an engraved "?" glyph and the "Intro" legend.
 
 ## Still weak
 
 - The intro is timed, not event-driven: on a very slow machine the long-frame clamp stretches it, but a planner call that takes long could overlap two floods.
 - The scripted wall position is chosen from the live route, so on odd plans a wall may fall right in front of a building edge and look less deliberate.
-- The Intro key is quiet (dim, bottom right of the console); it is findable but not loud.
+- The step 1 drops are caught mid-fall in some still frames (a building partly settled looks like a stripe); in motion they are 350 ms each.
+- The initial D* flood in step 4 still covers a wide area (deep orange now, but big); it is the true search extent.
+- The Intro key no longer shows its `?` shortcut as a second glyph (the `?` is the icon); the shortcut still works and is in the aria label.
 - HUD numbers during step 1 show the previous plan's values (all real, but briefly confusing) until step 2.
 - Esc/click skip on mobile has no visible "tap to skip" hint (the `Esc` hint is hidden under 760 px).
 - Reduced-motion card art is schematic, not a screenshot.
