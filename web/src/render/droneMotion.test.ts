@@ -4,6 +4,10 @@ import {
   angleDiff,
   bankTarget,
   coverFor,
+  droneDrawScale,
+  MAX_DRONE_SCALE,
+  MIN_DRONE_PX,
+  footprintCover,
   createDroneMotion,
   droneFinalState,
   kickRecoil,
@@ -191,11 +195,18 @@ describe('rotors', () => {
 });
 
 describe('cover and the ground shadow', () => {
-  it('is covered when the drone is over a wall and half covered when the shadow lands on one', () => {
-    expect(coverFor(false, false)).toBe(0);
-    expect(coverFor(true, false)).toBe(1);
-    expect(coverFor(false, true)).toBeGreaterThan(0);
-    expect(coverFor(false, true)).toBeLessThan(1);
+  it('is fully covered when the drone is over a wall and partly covered by the shadow footprint', () => {
+    expect(coverFor(false, 0)).toBe(0);
+    expect(coverFor(true, 0)).toBe(1);
+    expect(coverFor(true, 0.3)).toBe(1);
+    expect(coverFor(false, 1)).toBeGreaterThan(0.5);
+    expect(coverFor(false, 1)).toBeLessThan(1);
+    expect(coverFor(false, 0.5)).toBeLessThan(coverFor(false, 1));
+    expect(coverFor(false, 0.5)).toBeGreaterThan(0);
+  });
+  it('clamps a footprint cover outside 0..1', () => {
+    expect(coverFor(false, -2)).toBe(0);
+    expect(coverFor(false, 7)).toBe(coverFor(false, 1));
   });
 
   it('is pushed lower right, further with speed and altitude', () => {
@@ -267,5 +278,84 @@ describe('lampMix (pad lamp going green)', () => {
   it('is instant under reduced motion', () => {
     expect(lampMix(1, true, true)).toBe(1);
     expect(lampMix(0, false, true)).toBe(0);
+  });
+});
+
+describe('footprintCover (what the shadow actually lies on)', () => {
+  const wallRight = (x0: number) => (x: number, _y: number): boolean => x >= x0;
+  const none = (): boolean => false;
+  const all = (): boolean => true;
+
+  it('is 0 over open ground and 1 when the whole footprint is on buildings', () => {
+    expect(footprintCover(none, 5, 5, 0.6)).toBe(0);
+    expect(footprintCover(all, 5, 5, 0.6)).toBeCloseTo(1, 9);
+  });
+  it('is the covered share of the footprint area (half on a wall edge)', () => {
+    expect(footprintCover(wallRight(5), 5, 5.3, 0.6)).toBeCloseTo(0.5, 9);
+    expect(footprintCover(wallRight(5), 5.3, 5.3, 0.6)).toBeCloseTo(0.75, 9);
+  });
+  it('samples every cell under the footprint, not just one neighbour', () => {
+    // A single wall cell at (6, 6), footprint centred on its corner: a quarter covered.
+    const one = (x: number, y: number): boolean => x === 6 && y === 6;
+    expect(footprintCover(one, 6, 6, 0.5)).toBeCloseTo(0.25, 9);
+    // Footprint wide enough to reach it from two cells away still sees it.
+    expect(footprintCover(one, 5.2, 6.5, 0.9)).toBeGreaterThan(0);
+  });
+  it('grows smoothly as the shadow slides onto a wall (no pop)', () => {
+    let prev = -1;
+    let maxStep = 0;
+    for (let x = 4; x <= 7.05; x += 0.05) {
+      const c = footprintCover(wallRight(5.5), x, 5.5, 0.6);
+      expect(c).toBeGreaterThanOrEqual(prev - 1e-9);
+      if (prev >= 0) maxStep = Math.max(maxStep, c - prev);
+      prev = c;
+    }
+    expect(maxStep).toBeLessThan(0.1);
+    expect(prev).toBeCloseTo(1, 9);
+  });
+  it('stays within 0..1 and survives a degenerate radius', () => {
+    for (const r of [0, -1, NaN]) {
+      const c = footprintCover(all, 3, 3, r);
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe('droneDrawScale (minimum on-screen size)', () => {
+  it('does not change anything when the cell-based drone is already big enough', () => {
+    expect(droneDrawScale(22)).toBe(1);
+    expect(droneDrawScale(40)).toBe(1);
+  });
+  it('lifts a phone-sized drone to the minimum span', () => {
+    const s = droneDrawScale(10);
+    expect(s).toBeGreaterThan(1.2);
+    expect(10 * 1.8 * s).toBeCloseTo(MIN_DRONE_PX, 5);
+  });
+  it('never shrinks, and caps the lift on tiny maps', () => {
+    expect(droneDrawScale(100)).toBe(1);
+    expect(droneDrawScale(2)).toBe(MAX_DRONE_SCALE);
+    expect(droneDrawScale(2)).toBeGreaterThanOrEqual(1);
+  });
+  it('is monotone: a smaller cell never gets a smaller scale', () => {
+    let prev = 0;
+    for (let c = 40; c >= 4; c -= 1) {
+      const s = droneDrawScale(c);
+      expect(s).toBeGreaterThanOrEqual(prev);
+      prev = s;
+    }
+  });
+  it('falls back to 1 for nonsense input', () => {
+    expect(droneDrawScale(0)).toBe(1);
+    expect(droneDrawScale(NaN)).toBe(1);
+  });
+  it('reaches the minimum span on the real 390 px phone map (cell 358 / 48) without hitting the cap', () => {
+    const cell = 358 / 48;
+    const s = droneDrawScale(cell);
+    expect(s).toBeLessThan(MAX_DRONE_SCALE);
+    expect(cell * 1.8 * s).toBeCloseTo(MIN_DRONE_PX, 5);
+  });
+  it('leaves the 1440 desktop map (cell 1024 / 48) alone', () => {
+    expect(droneDrawScale(1024 / 48)).toBe(1);
   });
 });

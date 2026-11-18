@@ -51,9 +51,56 @@ export function speedNorm(cellsPerSec: number): number {
   return n > 0 ? (n < 1 ? n : 1) : 0;
 }
 
-/** How much a building covers the shadow: the drone over a wall, or its shadow landing on one. */
-export function coverFor(underWall: boolean, shadowCellWall: boolean): number {
-  return underWall ? 1 : shadowCellWall ? 0.55 : 0;
+/** Most cover the shadow alone can cause (the drone itself over a wall is always 1). */
+const SHADOW_COVER_MAX = 0.8;
+
+/**
+ * How much a building covers the shadow: 1 when the drone is over a wall, otherwise the share
+ * of the shadow footprint that lies on buildings (`footprintCover`), scaled down a little.
+ */
+export function coverFor(underWall: boolean, shadowCover: number): number {
+  if (underWall) return 1;
+  const c = shadowCover > 0 ? (shadowCover < 1 ? shadowCover : 1) : 0;
+  return c * SHADOW_COVER_MAX;
+}
+
+/**
+ * Share (0..1) of the square footprint centred on (`cx`, `cy`) with half-side `r` (cell units)
+ * that lies on wall cells: the exact overlap area with every cell under it, so it grows
+ * smoothly as the shadow slides onto a building instead of popping cell by cell. Allocation-free.
+ */
+export function footprintCover(isWall: (x: number, y: number) => boolean, cx: number, cy: number, r: number): number {
+  if (!(r > 0)) return isWall(Math.floor(cx), Math.floor(cy)) ? 1 : 0;
+  const x0 = cx - r;
+  const x1 = cx + r;
+  const y0 = cy - r;
+  const y1 = cy + r;
+  let area = 0;
+  for (let y = Math.floor(y0); y <= Math.floor(y1); y++) {
+    const oy = Math.min(y1, y + 1) - Math.max(y0, y);
+    if (!(oy > 0)) continue;
+    for (let x = Math.floor(x0); x <= Math.floor(x1); x++) {
+      const ox = Math.min(x1, x + 1) - Math.max(x0, x);
+      if (ox > 0 && isWall(x, y)) area += ox * oy;
+    }
+  }
+  const c = area / (4 * r * r);
+  return c < 0 ? 0 : c > 1 ? 1 : c;
+}
+
+/** Drone span in cells (shell plus rotors), and the smallest span it may have on screen, in CSS px. */
+const DRONE_SPAN_CELLS = 1.8;
+export const MIN_DRONE_PX = 29;
+export const MAX_DRONE_SCALE = 2.6;
+
+/**
+ * Draw scale of the drone for a map cell size: 1 when its cell-based size is already at least
+ * `MIN_DRONE_PX`, larger on phones so it still reads. Never below 1, capped on tiny maps.
+ */
+export function droneDrawScale(cell: number): number {
+  if (!(cell > 0)) return 1;
+  const s = MIN_DRONE_PX / (cell * DRONE_SPAN_CELLS);
+  return s <= 1 ? 1 : s < MAX_DRONE_SCALE ? s : MAX_DRONE_SCALE;
 }
 
 /** Where and how the ground shadow is drawn. Offsets are in cells, lower right (light is top left). */
