@@ -2,12 +2,12 @@ import { formatLatency } from '../../format';
 import { GAUGE_TICKS, gaugeAngle } from './gauge';
 
 /** Pivot of the needle in the SVG box and the radii of the printed scale. */
-const CX = 60;
-const CY = 62;
-const R_OUT = 50;
-const R_TICK = 44;
-const R_LABEL = 36;
-const NEEDLE = 42;
+const CX = 75;
+const CY = 66;
+const R_OUT = 60;
+const R_TICK = 53;
+const R_LABEL = 40;
+const NEEDLE = 50;
 
 /** Point on the dial at `deg` (0 is straight up) and radius `r`. */
 function polar(deg: number, r: number): [number, number] {
@@ -27,7 +27,7 @@ export function Gauge({ ms }: { ms: number }) {
   return (
     <div className="readout gauge">
       <span className="readout-k">Replan latency</span>
-      <svg viewBox="0 0 120 70" className="gauge-dial" role="img" aria-label={`Latency needle ${text}`} focusable="false">
+      <svg viewBox="0 0 150 96" className="gauge-dial" role="img" aria-label={`Latency needle ${text}`} focusable="false">
         <path className="gauge-arc" d={`M ${x0} ${y0} A ${R_OUT} ${R_OUT} 0 0 1 ${x1} ${y1}`} />
         {GAUGE_TICKS.map((t) => {
           const a = gaugeAngle(t.ms);

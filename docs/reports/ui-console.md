@@ -28,8 +28,8 @@ Deviations: new instrument components live in `web/src/components/instruments/` 
 
 | Engine | frames | p50 | p95 | max | over 16.7 ms | callback work p50 / p95 / max |
 |---|---|---|---|---|---|---|
-| C++ Wasm | 701 | 16.70 | 16.70 | 16.80 | 198 | 0.10 / 0.20 / 0.60 ms |
-| TS fallback (wasm blocked) | 700 | 16.70 | 16.80 | 16.80 | 199 | 0.10 / 0.20 / 0.70 ms |
+| C++ Wasm | 702 | 16.70 | 16.70 | 16.80 | 212 | 0.10 / 0.20 / 0.50 ms |
+| TS fallback (wasm blocked) | 700 | 16.70 | 16.80 | 16.80 | 203 | 0.10 / 0.20 / 0.60 ms |
 
 The "over 16.7" count is intervals of 16.8 ms against a 16.7 threshold, i.e. vsync jitter, not dropped frames; no frame exceeded 16.8 ms. Per-frame work stays under 1 ms.
 
@@ -62,9 +62,18 @@ D stays Wind (printed on the keycap), so the algorithm switch is M. Dials also t
 
 - No scenario save/load was exercised against a live API in the evidence runs (API offline state only).
 - Dial feel (drag sensitivity, vertical cap drag) was checked by script and tests, not by hand on a touch device.
-- The latency gauge is small (about 108 px wide) to fit the 130 px strip; needle labels are tiny.
+- The latency gauge now fills its well (dial about 150 px wide, labels 11 px) but its sweep is still small next to the counters.
 - Counter roll is verified in the video only at normal speed; no per-frame check of the roll itself.
-- Rocker switch tilt uses a CSS perspective that looks flat at this size.
+- Rocker on/off is now lamp, throw, engraved I/O and dimmed name; the throw is a small CSS perspective tilt, subtle at 42 px.
 - The 1024 to 1200 px width range was not reviewed closely.
 - Mobile tab switch hides trays with `display: none`, so there is no transition between tabs.
-- The delta chip is not shown in the evidence stills (needs a replan at capture time).
+- The delta chip uses one decimal (the tested formatter), e.g. "-3.8", while path cost shows two; the stills use Dynamic Patrols at 4x to get a replan quickly.
+- The mobile tablist works with Tab, Enter and Space only, not arrow keys.
+
+## Review round 1 changes
+
+- Telemetry strip rebalanced: the gauge fills its well height with a larger needle and 11 px tick labels, exact value under the hub. Counter drums are 28x44 px (32 px digits) centred in their wells, and the path cost value (34 px) sits on the same band. Columns: status, gauge 1.2fr, nodes, replans, cost. Strip height is unchanged at 130 px.
+- Rockers: ON is thrown forward with a lit lamp, amber "I" and bright name; OFF is dark with a dead lamp, "O" and a dimmed name.
+- New stills in docs/redesign/pr5/: `after-delta-chip-1440.png`, `after-rocker-off-1440.png` (LiDAR off), `after-mobile-390-plan.png`, `after-mobile-390-build.png`.
+- Keyboard check at 390: Tab then Enter selects Plan, Tab then Space selects Build, and the trays swap correctly.
+- Frame times (table above), contact sheet, video and reduced-motion still were re-captured after these changes.
