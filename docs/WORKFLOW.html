@@ -84,10 +84,10 @@
     <tr><th>Step</th><th>Owner</th><th>Status</th><th>Notes</th></tr>
     <tr><td>Toolchain (Docker emsdk 4.0.10, Postgres 16, gh)</td><td class="mgr">Manager</td><td>Done</td><td>No local Emscripten install needed</td></tr>
     <tr><td>Repo, README, contracts</td><td class="mgr">Manager</td><td>Done</td><td></td></tr>
-    <tr><td>C++ engine PR</td><td class="cpp">Agent A</td><td>In progress</td><td></td></tr>
-    <tr><td>Web visualizer PR</td><td class="web">Agent B</td><td>In progress</td><td></td></tr>
-    <tr><td>Backend API PR</td><td class="api">Agent C</td><td>In progress</td><td></td></tr>
-    <tr><td>Integration + visual check</td><td class="mgr">Manager</td><td>Pending</td><td></td></tr>
+    <tr><td>C++ engine PR</td><td class="cpp">Agent A</td><td>Merged (#1)</td><td>17 C++ tests, Wasm 27 KB</td></tr>
+    <tr><td>Web visualizer PR</td><td class="web">Agent B</td><td>Merged (#3)</td><td>39 Vitest tests incl. Wasm/TS parity</td></tr>
+    <tr><td>Backend API PR</td><td class="api">Agent C</td><td>Merged (#2)</td><td>86 tests incl. Postgres integration</td></tr>
+    <tr><td>Integration + visual check</td><td class="mgr">Manager</td><td>Done</td><td>Found D* Lite float-tie bug in browser; fixed by Agent A in #4 with regression tests</td></tr>
   </table>
 
   <h2>Review gate (every PR)</h2>
