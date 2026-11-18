@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react';
 const target = process.env.API_TARGET ?? 'http://localhost:3001';
 
 export default defineConfig({
+  // GitHub Pages serves under /<repo>/, so CI sets VITE_BASE; local dev stays at '/'.
+  base: process.env.VITE_BASE ?? '/',
   plugins: [react()],
   // Emscripten output fetches its .wasm file; make sure Vite treats it as an asset.
   assetsInclude: ['**/*.wasm'],

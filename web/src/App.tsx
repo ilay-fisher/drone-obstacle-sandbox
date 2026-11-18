@@ -9,6 +9,7 @@ import { TelemetryHud } from './components/TelemetryHud';
 import { createPlanner, type PlanMode } from './engine/plannerBridge';
 import { Simulation, type SimStats } from './engine/simulation';
 import { log } from './logger';
+import { isDemoMode } from './demoMode';
 import { buildPreset, type PresetName } from './scenarios/presets';
 
 const GRID_W = 48;
@@ -34,6 +35,7 @@ export function App() {
     createPlanner(GRID_W, GRID_H).then((planner) => {
       if (cancelled) return;
       const s = new Simulation(planner, (summary) => {
+        if (isDemoMode()) return; // nothing to record to on the static demo
         postRun({ ...summary, scenarioId: scenarioId.current, engineMode: planner.mode })
           .catch((e) => log.warn('run not recorded', e instanceof ApiError ? e.message : e));
       });
@@ -59,6 +61,7 @@ export function App() {
   }, [sim]);
 
   useEffect(() => {
+    if (isDemoMode()) return; // no backend on the static demo; HUD shows the demo label
     let alive = true;
     const probe = () => checkHealth().then((ok) => alive && setApiOnline(ok));
     probe();
@@ -122,7 +125,7 @@ export function App() {
       <main>
         <section className="stage"><DroneCanvas sim={sim} brush={brush} showHeat={showHeat} showLidar={showLidar} /></section>
         <aside>
-          <TelemetryHud engine={sim.planner.mode} stats={stats} apiOnline={apiOnline} />
+          <TelemetryHud engine={sim.planner.mode} stats={stats} apiOnline={apiOnline} demo={isDemoMode()} />
           <ControlPanel
             brush={brush} onBrush={setBrush}
             mode={mode} onMode={setMode}
@@ -134,7 +137,7 @@ export function App() {
             radius={radius} onRadius={setRadius}
             showHeat={showHeat} onShowHeat={setShowHeat}
             showLidar={showLidar} onShowLidar={setShowLidar}
-            apiOnline={apiOnline} scenarios={scenarios}
+            apiOnline={apiOnline} demo={isDemoMode()} scenarios={scenarios}
             onRefreshScenarios={refreshScenarios}
             onSave={onSave} onLoad={onLoad} onDelete={onDelete}
           />
