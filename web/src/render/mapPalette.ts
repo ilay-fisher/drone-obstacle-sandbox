@@ -31,6 +31,9 @@ export interface MapColors {
   padRim: string;
   padRing: string;
   padGlow: string;
+  /** Status-only green for the landed pad: lamp, ring and glow. */
+  lampGo: string;
+  glowGo: string;
   /** Patrol puck body, rim light and heading notch. */
   puck: string;
   puckHi: string;
@@ -79,6 +82,8 @@ export function buildMapColors(pal: Palette): MapColors {
     padRim: withAlpha(pal.goal, 0.85),
     padRing: pal.goal,
     padGlow: withAlpha(pal.goal, 0.5),
+    lampGo: pal.pass,
+    glowGo: withAlpha(pal.pass, 0.9),
     puck: mix(pal.route, pal.stage, 0.18),
     puckHi: mix(pal.goal, pal.drone, 0.1),
     puckDeep: mix(pal.route, '#000000', 0.62),
