@@ -246,12 +246,17 @@ input[type='range']::-moz-range-thumb {
 @media (min-width: 1024px) {
   :root { --strip-h: 130px; }
   html, body { overflow: hidden; }
-  .app { height: 100dvh; min-height: 0; padding-bottom: var(--space-4); }
-  main { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr) clamp(320px, 26vw, 400px); gap: var(--space-5); align-items: stretch; }
-  /* chrome = header 48 + app padding 32 + gaps 16 + 12 + strip + stage bezel 24 */
-  .deck { width: min(100%, calc((100dvh - 48px - 32px - 16px - 12px - var(--strip-h) - 24px) * 1.6 + 24px)); }
-  .console {
-    overflow-y: auto; scrollbar-width: none; padding: 2px 14px 44px 2px; margin-right: -14px;
+  .app { height: 100dvh; min-height: 0; padding-top: 16px; padding-bottom: 16px; gap: 12px; }
+  header { height: 28px; }
+  /* main sizes to the map deck (row = deck height) and shrinks only when the viewport is shorter; the console stretches to the deck bottom */
+  main { flex: 0 1 auto; min-height: 0; grid-template-rows: minmax(0, auto); grid-template-columns: minmax(0, 1fr) clamp(320px, 22vw, 380px); gap: var(--space-5); align-items: stretch; }
+  /* chrome = app padding 32 + header 28 + gap 12 + deck gap 12 + strip + stage bezel 24; deck is top-aligned so both columns share a top */
+  .deck { margin: 0 auto; width: min(100%, calc((100dvh - 32px - 28px - 12px - 12px - var(--strip-h) - 24px) * 1.6 + 24px)); }
+  .console { overflow-y: auto; scrollbar-width: none; padding: 0 14px 0 2px; margin-right: -14px; }
+  .console > .panel { flex: 1 0 auto; }
+  /* The fade only applies when the console really scrolls (data-scroll set from App), so the aligned bottom edge stays crisp otherwise. */
+  .console[data-scroll] {
+    padding-bottom: 44px;
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
     mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
   }

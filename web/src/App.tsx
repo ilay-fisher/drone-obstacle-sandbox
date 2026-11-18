@@ -69,6 +69,19 @@ export function App() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  /** Marks the console as scrollable so CSS only fades its bottom edge when content is actually clipped. */
+  const consoleRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = consoleRef.current;
+    if (!el) return;
+    const update = () => el.toggleAttribute('data-scroll', el.scrollHeight > el.clientHeight + 1);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [sim]);
+
   const refreshScenarios = useCallback(() => {
     listScenarios().then(setScenarios).catch(() => setApiOnline(false));
   }, []);
@@ -129,7 +142,7 @@ export function App() {
             <TelemetryHud engine={sim.planner.mode} stats={stats} apiOnline={apiOnline} demo={isDemoMode()} />
           </div>
         </div>
-        <aside className="console">
+        <aside className="console" ref={consoleRef}>
           <ControlPanel
             brush={brush} onBrush={setBrush}
             mode={mode} onMode={setMode}
