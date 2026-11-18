@@ -9,15 +9,12 @@
  */
 import type { CellValue, PlanMode } from '../engine/plannerBridge';
 import type { SimState } from '../engine/simulation';
-import { blockCellsAhead, cellsWithValue, dueCount, paintBatches } from './introCues';
+import { cellsWithValue, dueCount, paintBatches, pickWall } from './introCues';
 import { CUES } from './introScript';
+import { initSeq, stepSeq, type CueName, type SeqState } from './introSequence';
 
 /** Drone speed multiplier during the intro: slow enough that the route is read before it is crossed. */
 export const INTRO_SPEED = 0.8;
-/** The scripted walls go this many cells ahead of the drone, a little beyond LiDAR range. */
-export const BLOCK_AHEAD = 9;
-/** Half-height of a scripted wall: it spans `2 * BLOCK_HALF + 1` cells across the avenue. */
-export const BLOCK_HALF = 2;
 /** Most cells painted in one frame: under the renderer's 48-cell limit for animated edits. */
 export const MAX_BATCH = 40;
 
@@ -29,6 +26,10 @@ export interface IntroSim {
   readonly path: Int32Array;
   readonly pathIdx: number;
   readonly pathLen: number;
+  readonly lidarRadius: number;
+  /** Planning calls finished so far; the script waits on it, so a slow planner delays the next cue. */
+  readonly replanSeq: number;
+  copyVisualGrid(out: Uint8Array): void;
   importState(s: SimState): boolean;
   editCell(x: number, y: number, v: CellValue): void;
   reset(): void;
@@ -42,20 +43,23 @@ export interface IntroHost {
   setPlaying(on: boolean): void;
   /** While true the renderer plays no search events (the city is still being painted). */
   setQuiet(q: boolean): void;
+  /** While true the renderer adopts new plans silently: the route follows, no flood and no chip. */
+  setCalm(c: boolean): void;
   /** Puts the user's own speed back. */
   restore(): void;
 }
-
-type CueName = 'loadCity' | 'play' | 'block1' | 'dstar' | 'block2';
-const ORDER: CueName[] = ['loadCity', 'play', 'block1', 'dstar', 'block2'];
 
 export class IntroRunner {
   private readonly batches: Int32Array[];
   private readonly wind: Int32Array;
   private painted = 0;
   private windPainted = false;
-  private next = 0;
+  private seqState: SeqState = initSeq();
   private active = false;
+  private finished = false;
+  /** `replanSeq` the quiet D* plan started from; -1 when no quiet plan is waiting. */
+  private calmSeq = -1;
+  private readonly scratch: Uint8Array;
 
   constructor(
     private readonly sim: IntroSim,
@@ -65,6 +69,17 @@ export class IntroRunner {
   ) {
     this.batches = paintBatches(cellsWithValue(city.cells, 1), sim.width, sim.height, MAX_BATCH);
     this.wind = cellsWithValue(city.cells, 2);
+    this.scratch = new Uint8Array(sim.width * sim.height);
+  }
+
+  /** Caption step in force: 0 to 3 (the step cues move it on). */
+  get step(): 0 | 1 | 2 | 3 {
+    return this.seqState.step;
+  }
+
+  /** The four guided steps are over (the caller then calls `finish`). */
+  get done(): boolean {
+    return this.finished;
   }
 
   /** Clears the map, silences the search layer and begins. Call `update` from here on. */
@@ -72,7 +87,9 @@ export class IntroRunner {
     this.active = true;
     this.painted = 0;
     this.windPainted = false;
-    this.next = 0;
+    this.seqState = initSeq();
+    this.finished = false;
+    this.calmSeq = -1;
     this.sim.importState(this.empty);
     this.sim.setMode('astar');
     this.sim.speed = INTRO_SPEED;
@@ -81,11 +98,24 @@ export class IntroRunner {
     this.host.setPlaying(false);
   }
 
-  /** Advances the script to `tMs`. Cheap enough to call every frame. */
+  /**
+   * Advances the script to `tMs`. Cheap enough to call every frame. At most one cue fires per
+   * call, and a cue that makes the planner run holds the next one back until that planning call
+   * has finished (see `introSequence.ts`).
+   */
   update(tMs: number): void {
-    if (!this.active) return;
-    if (this.next === 0) this.paint(tMs);
-    while (this.next < ORDER.length && tMs >= CUES[ORDER[this.next]]) this.fire(ORDER[this.next++]);
+    if (!this.active || this.finished) return;
+    if (this.seqState.next === 0) this.paint(tMs);
+    const seq = this.sim.replanSeq;
+    if (this.calmSeq >= 0 && seq > this.calmSeq) {
+      // The quiet plan has landed (and was adopted silently in that same frame): back to normal.
+      this.calmSeq = -1;
+      this.host.setCalm(false);
+    }
+    const r = stepSeq(this.seqState, tMs, seq);
+    this.seqState = r.state;
+    if (r.fire === 'finish') this.finished = true;
+    else if (r.fire) this.fire(r.fire.name);
   }
 
   /** The steps are over: leave the run paused where it is and hand the console back. */
@@ -94,6 +124,7 @@ export class IntroRunner {
     this.active = false;
     this.sim.setPlaying(false);
     this.host.setQuiet(false);
+    this.host.setCalm(false);
     this.host.setPlaying(false);
     this.host.restore();
   }
@@ -117,6 +148,7 @@ export class IntroRunner {
     this.sim.importState(this.city);
     this.sim.setMode('astar');
     this.host.setQuiet(false);
+    this.host.setCalm(false);
     this.host.setMode('astar');
     this.host.setPlaying(false);
   }
@@ -160,11 +192,17 @@ export class IntroRunner {
         break;
       case 'block1':
       case 'block2':
-        for (const c of blockCellsAhead(sim.path, sim.pathIdx, sim.pathLen, sim.width, sim.height, BLOCK_AHEAD, BLOCK_HALF)) {
-          sim.editCell(c.x, c.y, 1);
-        }
+        sim.copyVisualGrid(this.scratch);
+        for (const c of pickWall({
+          grid: this.scratch, width: sim.width, height: sim.height,
+          path: sim.path, pathIdx: sim.pathIdx, pathLen: sim.pathLen, lidarRadius: sim.lidarRadius,
+        })) sim.editCell(c.x, c.y, 1);
         break;
       case 'dstar':
+        // D* Lite's first call searches the whole map. Let it happen quietly, before the second
+        // wall, so the one flood step 4 shows is the real incremental repair.
+        this.calmSeq = sim.replanSeq;
+        host.setCalm(true);
         sim.setMode('dstar');
         host.setMode('dstar');
         break;

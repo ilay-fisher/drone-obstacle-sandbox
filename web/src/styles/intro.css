@@ -43,6 +43,7 @@
 .intro-caption-text { display: inline-block; animation: intro-tick var(--spring-snappy-dur) var(--spring-snappy) both; }
 .intro-pill[data-outro] .intro-caption { color: var(--paint-hi); }
 .intro-skip { flex: none; font: 500 11px/1 var(--font-mono); color: var(--text-faint); white-space: nowrap; }
+.skip-tap { display: none; }
 .intro-skip kbd {
   font: inherit; padding: 2px 6px; margin-right: 3px; border-radius: var(--radius-pill);
   background: var(--well); box-shadow: var(--well-inset); color: var(--text-dim);
@@ -74,16 +75,32 @@
   background: var(--paint); color: var(--on-paint); font: 700 11px/1 var(--font-mono);
 }
 .card-art { display: block; width: 100%; height: auto; border-radius: var(--radius-chip); box-shadow: var(--well-inset); }
+.art-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+/* the live map's materials: ground, relief buildings lit from the top left, contact shadow to the lower right */
 .art-ground { fill: var(--ground); }
-.art-wall { fill: var(--wall); stroke: rgb(255 255 255 / 0.08); stroke-width: 0.8; }
-.art-wall-shadow { fill: rgb(0 0 0 / 0.35); }
-.art-route { fill: none; stroke: var(--paint); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.art-wave { fill: none; stroke: rgb(var(--paint-hi-rgb) / 0.35); stroke-width: 1.5; }
-.art-block { fill: var(--blocked); }
-.art-lidar { fill: none; stroke: var(--text); stroke-opacity: 0.8; stroke-width: 1.6; stroke-linecap: round; }
-.art-ember { fill: rgb(var(--paint-rgb) / 0.55); }
-.art-drone { fill: var(--text); }
-.art-goal { fill: none; stroke: var(--paint); stroke-width: 1.6; }
+.art-dots circle { fill: rgb(var(--text-rgb) / 0.07); }
+.art-roof-hi { stop-color: color-mix(in srgb, var(--wall) 82%, var(--text)); }
+.art-roof-lo { stop-color: color-mix(in srgb, var(--wall) 76%, #000); }
+.art-roof { fill: url(#art-roof); }
+.art-lit { fill: none; stroke: rgb(255 255 255 / 0.09); stroke-width: 0.9; }
+.art-side { fill: color-mix(in srgb, var(--wall) 28%, #000); }
+.art-contact { fill: rgb(0 0 0 / 0.55); }
+/* the route: soft glow, solid orange, amber highlight */
+.art-route-glow { stroke: var(--paint); stroke-width: 7; stroke-opacity: 0.55; }
+.art-route { stroke: var(--paint); stroke-width: 2.4; }
+.art-route-hi { stroke: var(--paint-hi); stroke-width: 0.7; stroke-opacity: 0.9; }
+/* A*: a paper-white region; D* Lite: a deep-orange repair region */
+.art-astar { fill: rgb(var(--text-rgb) / 0.3); }
+.art-dstar { fill: rgb(var(--paint-rgb) / 0.85); }
+.art-lidar { fill: none; stroke: rgb(var(--text-rgb) / 0.55); stroke-width: 0.9; }
+.art-lidar-fill { fill: rgb(var(--text-rgb) / 0.1); stroke: none; }
+.art-drone-shadow { fill: rgb(0 0 0 / 0.45); }
+.art-rotor { fill: color-mix(in srgb, var(--ground) 60%, #000); stroke: rgb(var(--text-rgb) / 0.45); stroke-width: 0.8; }
+.art-body { fill: var(--text); }
+.art-nav { fill: var(--paint-hi); }
+.art-goal-glow { fill: none; stroke: var(--paint); stroke-width: 3; stroke-opacity: 0.8; }
+.art-goal { fill: none; stroke: var(--paint); stroke-width: 1.8; }
+.art-goal-dot { fill: var(--paint-hi); }
 .card-turn { margin: var(--space-4) 0 var(--space-3); font: 600 15px/1.3 var(--font-body); color: var(--paint-hi); }
 .card-btn {
   min-height: 44px; padding: 0 var(--space-5); border: 0; border-radius: var(--radius-control);
@@ -92,17 +109,22 @@
 }
 .card-btn:focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
 
+
 @media (max-width: 760px) {
   .intro-pill { bottom: 14px; gap: 8px; padding: 6px 12px 6px 10px; max-width: calc(100% - 20px); }
   .intro-pips { gap: 3px; }
   .intro-pips i { width: 5px; height: 5px; }
   .intro-caption { font-size: 12px; line-height: 1.25; white-space: nowrap; }
-  .intro-skip { display: none; }
+  /* touch: the Esc hint gives way to a quiet "Tap to skip" on the same line */
+  .skip-key { display: none; }
+  .skip-tap { display: inline; font-size: 11px; letter-spacing: 0; }
+  .intro-skip { padding-left: 8px; border-left: 1px solid rgb(var(--text-rgb) / 0.14); }
   .intro-card { padding: var(--space-4); }
   .intro-card h2 { font-size: 19px; }
   .card-steps { gap: var(--space-3); }
   .card-steps p { font-size: 12.5px; }
 }
+@media (max-width: 420px) { .intro-pill { gap: 6px; padding: 6px 10px 6px 8px; } .intro-pips { display: none; } .intro-skip { padding-left: 6px; } }
 
 @media (prefers-reduced-motion: reduce) {
   .console, .intro-pips i { transition: none; }

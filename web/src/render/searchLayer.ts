@@ -152,6 +152,37 @@ class SearchShow {
     this.advanceGlow(v);
   }
 
+  /** Sets the display route and its raw arc lengths (used to find the drone along it). */
+  private setRoute(path: Int32Array, w: number): void {
+    this.cur = smoothRoute(path, w);
+    const n = path.length;
+    this.rawCum = new Float32Array(n);
+    if (n > 0) {
+      const raw = new Float32Array(2 * n);
+      cellCentres(path, w, raw);
+      arcLengths(raw, n, this.rawCum);
+    }
+  }
+
+  /**
+   * Takes a new plan in without showing it: the route follows the drone's new path at once, but
+   * there is no flood, resting glow, dissolve or chip. Used for the intro's first D* Lite call,
+   * which searches the whole map and would otherwise undercut "repairs only what changed".
+   */
+  adopt(sim: Simulation, v: RenderView): void {
+    const ev = sim.lastReplan;
+    if (!ev || ev.seq === this.seq) return;
+    this.prepare(v);
+    this.seq = ev.seq;
+    this.ev = null;
+    this.chip = null;
+    this.old = null;
+    this.phases = FINISHED;
+    this.accCtx?.clearRect(0, 0, v.w * v.cell, v.h * v.cell);
+    this.accCount = 0;
+    this.setRoute(ev.newPath, v.w);
+  }
+
   private begin(ev: ReplanEvent, v: RenderView, now: number): void {
     this.seq = ev.seq;
     this.ev = ev;
@@ -161,14 +192,7 @@ class SearchShow {
     this.flood.compute(ev.heat, ev.origin, ev.origin.length);
     this.accCtx?.clearRect(0, 0, v.w * v.cell, v.h * v.cell);
     this.accCount = 0;
-    this.cur = smoothRoute(ev.newPath, v.w);
-    const n = ev.newPath.length;
-    this.rawCum = new Float32Array(n);
-    if (n > 0) {
-      const raw = new Float32Array(2 * n);
-      cellCentres(ev.newPath, v.w, raw);
-      arcLengths(raw, n, this.rawCum);
-    }
+    this.setRoute(ev.newPath, v.w);
     this.old = this.animated && ev.oldPath.length > 1 ? smoothRoute(ev.oldPath, v.w) : null;
     this.placeChip(v);
   }
@@ -452,6 +476,7 @@ function showFor(sim: Simulation): SearchShow {
 export function drawSearchUnder(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, o: DrawOpts, now: number): void {
   const show = showFor(sim);
   if (o.quiet) { show.mute(sim); return; }
+  if (o.calm) { show.adopt(sim, v); return; }
   show.sync(sim, v, now);
   if (!o.showHeat) return;
   show.drawGlow(ctx, v);
@@ -461,6 +486,7 @@ export function drawSearchUnder(ctx: CanvasRenderingContext2D, sim: Simulation, 
 export function drawSearchOver(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, o: DrawOpts, now: number): void {
   const show = showFor(sim);
   if (o.quiet) return;
+  if (o.calm) { show.adopt(sim, v); show.drawRoute(ctx, sim, v); return; }
   show.sync(sim, v, now);
   show.drawDissolve(ctx, v);
   show.drawRoute(ctx, sim, v);
