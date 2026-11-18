@@ -141,10 +141,12 @@ main { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)
 .readout-k { color: var(--text-faint); font-size: 11px; white-space: nowrap; }
 .readout-v { font: 500 22px/1.2 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.gauge { align-items: center; gap: 0; width: 158px; padding-top: 8px; padding-bottom: 8px; }
-.gauge .readout-k { align-self: flex-start; }
+.gauge { align-items: center; gap: 0; width: 150px; padding-top: 7px; padding-bottom: 7px; }
+.gauge .readout-k { align-self: flex-start; line-height: 1.2; }
 .gauge .readout-v { font-size: 12px; line-height: 1.2; }
-.gauge-dial { display: block; width: 124px; height: auto; margin-top: 2px; overflow: visible; }
+.gauge-dial { display: block; width: 108px; height: auto; margin-top: 0; overflow: visible; }
+.hud .readout { overflow: hidden; }
+.hud .counter, .hud .cost { padding-top: 8px; padding-bottom: 8px; }
 .gauge-arc { fill: none; stroke: rgb(var(--text-rgb) / 0.1); stroke-width: 3; stroke-linecap: round; }
 .gauge-tick { stroke: rgb(var(--text-rgb) / 0.3); stroke-width: 1.2; stroke-linecap: round; }
 .gauge-tick.major { stroke: rgb(var(--text-rgb) / 0.55); stroke-width: 1.8; }
@@ -182,6 +184,12 @@ main { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)
   border-radius: var(--radius-card); background: var(--body-gradient); box-shadow: var(--bevel-inset), var(--shadow-contact);
 }
 .tray-label { align-self: flex-start; }
+/* on desktop the trays share any spare column height; their content sits centred in the extra room */
+@media (min-width: 1024px) {
+  .tray { flex: 1 1 auto; }
+  .tray > .tray-label + * { margin-top: auto; }
+  .tray > :last-child { margin-bottom: auto; }
+}
 
 /* keycaps: a raised cap with a hard skirt shadow to the lower right. Press sinks and squashes on the snappy spring, release overshoots. */
 .keycap {
@@ -257,8 +265,9 @@ main { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)
 .switch-toggle[aria-checked='true'] .switch-thumb { translate: calc(100% + 4px) 0; }
 .switch-toggle:active .switch-thumb { scale: 0.97; }
 .switch-legend { position: relative; z-index: 1; text-align: center; pointer-events: none; color: var(--text-faint); font: 600 13px/1 var(--font-body); transition: color var(--dur-fast); }
-.switch-toggle[aria-checked='false'] .switch-legend:nth-of-type(1),
-.switch-toggle[aria-checked='true'] .switch-legend:nth-of-type(2) { color: var(--paint-hi); }
+/* children: thumb, legend A, legend B (so the legends are spans 2 and 3) */
+.switch-toggle[aria-checked='false'] .switch-legend:nth-child(2),
+.switch-toggle[aria-checked='true'] .switch-legend:nth-child(3) { color: var(--paint-hi); }
 .switch-legend { text-shadow: 1px 1px 0 rgb(255 255 255 / 0.06), -1px -1px 0 rgb(0 0 0 / 0.45); }
 
 .switch-rocker {
@@ -296,7 +305,10 @@ main { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)
 }
 .dial-rotor {
   position: absolute; inset: 0; border-radius: 50%; transition: rotate var(--spring-snappy-dur) var(--spring-snappy);
-  background: repeating-conic-gradient(rgb(255 255 255 / 0.08) 0 3deg, rgb(0 0 0 / 0.1) 3deg 6deg);
+}
+.dial-rotor::before {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-conic-gradient(rgb(255 255 255 / 0.09) 0 3deg, rgb(0 0 0 / 0.12) 3deg 6deg);
   -webkit-mask: radial-gradient(circle, transparent 66%, #000 68%); mask: radial-gradient(circle, transparent 66%, #000 68%);
 }
 .dial-mark { position: absolute; left: 50%; top: 5%; width: 4px; height: 19%; margin-left: -2px; border-radius: 2px; background: linear-gradient(var(--paint-hi), var(--paint)); box-shadow: 0 0 6px rgb(var(--paint-rgb) / 0.6); }
