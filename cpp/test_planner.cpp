@@ -191,7 +191,6 @@ static void testDStarReplanAfterBlock() {
   int cell = d.pathData()[d.getPathLength() - 15];
   int cx = cell % 100, cy = cell / 100;
   for (int y = cy - 3; y <= cy + 3; ++y) { d.setCell(cx, y, 1); ref.setCell(cx, y, 1); }
-  CHECK(!d.hasPathObstruction(sx, sy, 0, 0) || true);  // radius 0 sees nothing; just exercises the call
   CHECK(d.computePath(sx, sy, gx, gy, 1));
   CHECK(ref.computePath(sx, sy, gx, gy, 0));
   CHECK(near(d.getPathCost(), ref.getPathCost(), 1e-6));
