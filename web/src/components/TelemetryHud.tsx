@@ -1,3 +1,4 @@
+import { formatLatency } from '../format';
 import type { EngineMode } from '../engine/plannerBridge';
 import type { SimStats } from '../engine/simulation';
 
@@ -9,34 +10,41 @@ interface Props {
   demo?: boolean;
 }
 
-/** Live telemetry readout. Receives a plain snapshot, so it re-renders a few times per second. */
+/**
+ * Live telemetry readout. Receives a plain snapshot, so it re-renders a few times per
+ * second. Every value is exactly what `SimStats` holds; only the latency text is formatted
+ * (values under 0.1 ms read "< 0.1 ms" because the timer cannot resolve them).
+ */
 export function TelemetryHud({ engine, stats, apiOnline, demo = false }: Props) {
+  const statusClass = stats.status.replace(' ', '-').toLowerCase();
   const rows: [string, string][] = [
-    ['Engine Mode', engine],
-    ['Replan Latency', `${stats.lastLatencyMs.toFixed(3)} ms`],
+    ['Replan Latency', formatLatency(stats.lastLatencyMs)],
     ['Nodes Expanded', String(stats.lastExpanded)],
     ['Path Cost', stats.pathCost < 0 ? 'no path' : stats.pathCost.toFixed(2)],
     ['Total Replans', String(stats.replans)],
-    ['Mission Status', stats.status],
   ];
   return (
     <div className="hud">
       <h3>Telemetry</h3>
-      <dl>
+      <div className="hud-status">
+        <span className="hud-label">Mission Status</span>
+        <span className={`status ${statusClass}`}><i className="lamp" />{stats.status}</span>
+      </div>
+      <dl className="hud-grid">
         {rows.map(([k, v]) => (
-          <div key={k} className="hud-row">
+          <div key={k} className="readout">
             <dt>{k}</dt>
-            <dd className={k === 'Mission Status' ? `status ${stats.status.replace(' ', '-').toLowerCase()}` : ''}>{v}</dd>
+            <dd>{v}</dd>
           </div>
         ))}
-        <div className="hud-row">
-          <dt>API</dt>
-          <dd>
-            <span className={apiOnline ? 'dot on' : 'dot off'} />
-            {demo ? 'demo (no backend)' : apiOnline ? 'online' : 'offline'}
-          </dd>
-        </div>
       </dl>
+      <div className="chips">
+        <span className="chip"><span className="chip-k">Engine</span>{engine}</span>
+        <span className="chip">
+          <i className={apiOnline ? 'dot on' : 'dot off'} />
+          <span className="chip-k">API</span>{demo ? 'demo (no backend)' : apiOnline ? 'online' : 'offline'}
+        </span>
+      </div>
     </div>
   );
 }

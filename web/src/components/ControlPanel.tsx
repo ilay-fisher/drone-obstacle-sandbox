@@ -55,7 +55,11 @@ function Slider(p: { label: string; value: number; min: number; max: number; ste
   return (
     <label className="slider">
       <span>{p.label}<b>{p.fmt(p.value)}</b></span>
-      <input type="range" min={p.min} max={p.max} step={p.step} value={p.value} onChange={(e) => p.onChange(Number(e.target.value))} />
+      <input
+        type="range" min={p.min} max={p.max} step={p.step} value={p.value}
+        style={{ '--fill': `${((p.value - p.min) / (p.max - p.min)) * 100}%` } as React.CSSProperties}
+        onChange={(e) => p.onChange(Number(e.target.value))}
+      />
     </label>
   );
 }

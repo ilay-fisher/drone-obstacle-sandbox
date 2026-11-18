@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import './styles/fonts.css';
+import './styles/tokens.css';
 import './styles.css';
 import { isDemoMode } from './demoMode';
 import { log } from './logger';
