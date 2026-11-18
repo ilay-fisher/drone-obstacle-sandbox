@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPreset } from '../scenarios/presets';
-import { blockCellsAhead, cellsWithValue, dueCount, staggerOrder } from './introCues';
+import { blockCellsAhead, cellsWithValue, dueCount, paintBatches, staggerOrder } from './introCues';
 
 describe('cellsWithValue', () => {
   it('lists the flat indices holding a value, ascending', () => {
@@ -87,5 +87,46 @@ describe('blockCellsAhead', () => {
   it('returns nothing when there is no route', () => {
     expect(blockCellsAhead(new Int32Array(0), 0, 0, w, h, 9, 2)).toEqual([]);
     expect(blockCellsAhead(path, 0, 2, w, h, 9, 2)).toEqual([]);
+  });
+});
+
+describe('paintBatches', () => {
+  const w = 48;
+  const h = 30;
+  const walls = cellsWithValue(buildPreset('Urban Canyon', w, h).cells, 1);
+  const batches = paintBatches(walls, w, h, 40);
+
+  it('covers every wall cell exactly once', () => {
+    const all = batches.flatMap((b) => Array.from(b)).sort((x, y) => x - y);
+    expect(all).toEqual(Array.from(walls));
+  });
+
+  it('never exceeds the batch size, so each batch is one animated drop', () => {
+    for (const b of batches) expect(b.length).toBeLessThanOrEqual(40);
+    expect(batches.length).toBeGreaterThan(8);
+  });
+
+  it('keeps a building whole: every batch is a connected piece of one block', () => {
+    for (const b of batches) {
+      const set = new Set(Array.from(b));
+      const seen = new Set<number>([b[0]]);
+      const stack = [b[0]];
+      while (stack.length) {
+        const c = stack.pop()!;
+        for (const n of [c - 1, c + 1, c - w, c + w]) {
+          if (set.has(n) && !seen.has(n) && Math.abs((n % w) - (c % w)) <= 1) { seen.add(n); stack.push(n); }
+        }
+      }
+      expect(seen.size).toBe(b.length);
+    }
+  });
+
+  it('sweeps left to right', () => {
+    const minX = batches.map((b) => Math.min(...Array.from(b, (c) => c % w)));
+    for (let i = 1; i < minX.length; i++) expect(minX[i]).toBeGreaterThanOrEqual(minX[i - 1]);
+  });
+
+  it('handles an empty map', () => {
+    expect(paintBatches(new Int32Array(0), w, h, 40)).toEqual([]);
   });
 });

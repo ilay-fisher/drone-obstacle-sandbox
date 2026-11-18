@@ -36,7 +36,36 @@ function fakeHost() {
 }
 const city = () => buildPreset('Urban Canyon', W, H);
 const empty = () => buildPreset('Empty Arena', W, H);
+/** Frames inside the painting window: a building lands per frame, never two at once. */
+function paintAll(r: IntroRunner) {
+  for (let t = 0; t <= CUES.paintMs + 400; t += 16) r.update(t);
+}
 const count = (cells: Uint8Array, v: number) => cells.reduce((n, c) => n + (c === v ? 1 : 0), 0);
+
+describe('IntroRunner painting', () => {
+  it('paints at most one building per frame so each is one clean animated drop', () => {
+    const sim = fakeSim();
+    const r = new IntroRunner(sim, fakeHost(), city(), empty());
+    r.start();
+    let worst = 0;
+    for (let t = 0; t <= CUES.paintMs + 400; t += 16) {
+      const before = sim.edits.filter((e) => e[2] === 1).length;
+      r.update(t);
+      worst = Math.max(worst, sim.edits.filter((e) => e[2] === 1).length - before);
+    }
+    expect(worst).toBeGreaterThan(0);
+    expect(worst).toBeLessThanOrEqual(40);
+  });
+
+  it('finishes painting before the city is loaded for the A* plan', () => {
+    const sim = fakeSim();
+    const r = new IntroRunner(sim, fakeHost(), city(), empty());
+    r.start();
+    for (let t = 0; t <= CUES.paintMs + 400; t += 16) r.update(t);
+    expect(CUES.paintMs + 400).toBeLessThan(CUES.loadCity);
+    expect(sim.edits.filter((e) => e[2] === 1).length).toBe(count(city().cells, 1));
+  });
+});
 
 describe('IntroRunner', () => {
   it('start loads an empty map, goes quiet, selects A* and sets the intro speed', () => {
@@ -59,7 +88,7 @@ describe('IntroRunner', () => {
     expect(mid).toBeGreaterThan(0);
     expect(mid).toBeLessThan(wallsTotal);
     expect(sim.log).toContain('reset');
-    r.update(CUES.paintStart + CUES.paintMs);
+    paintAll(r);
     expect(sim.edits.filter((e) => e[2] === 1).length).toBe(wallsTotal);
     expect(sim.edits.filter((e) => e[2] === 2).length).toBe(count(city().cells, 2));
   });
@@ -68,7 +97,7 @@ describe('IntroRunner', () => {
     const sim = fakeSim();
     const r = new IntroRunner(sim, fakeHost(), city(), empty());
     r.start();
-    r.update(CUES.paintMs);
+    paintAll(r);
     const n = sim.edits.length;
     r.update(CUES.paintMs + 10);
     r.update(CUES.paintMs + 20);
@@ -80,7 +109,7 @@ describe('IntroRunner', () => {
     const host = fakeHost();
     const r = new IntroRunner(sim, host, city(), empty());
     r.start();
-    r.update(CUES.paintMs);
+    paintAll(r);
     sim.log.length = 0;
     sim.edits.length = 0;
     host.log.length = 0;
