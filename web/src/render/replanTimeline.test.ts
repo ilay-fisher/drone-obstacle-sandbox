@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHIP_MS, DISSOLVE_MS, DISSOLVE_START_MS, DRAW_MS, DRAW_START_MS, FINISHED, FLOOD_MS, TOTAL_MS,
-  chipText, replanPhases, settle,
+  chipText, chipTextCompact, replanPhases, settle,
 } from './replanTimeline';
 
 describe('replan timeline', () => {
@@ -78,5 +78,12 @@ describe('replan timeline', () => {
     expect(chipText('dstar', false, true, 640)).toBe('searched 640 cells');
     expect(chipText('astar', false, true, 1)).toBe('searched 1 cell');
     expect(chipText('astar', false, false, 90)).toBe('searched 90 cells, no route');
+  });
+
+  it('has a compact chip form with the same honest verb and count', () => {
+    expect(chipTextCompact('astar', false, true, 354)).toBe('354 searched');
+    expect(chipTextCompact('dstar', true, true, 2)).toBe('2 repaired');
+    expect(chipTextCompact('dstar', false, true, 640)).toBe('640 searched');
+    expect(chipTextCompact('astar', false, false, 90)).toBe('90 searched, no route');
   });
 });
