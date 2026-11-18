@@ -30,7 +30,8 @@ import type { Simulation } from '../engine/simulation';
 import { FloodOrder, frontCount } from './floodOrder';
 import { parseHex } from './mapPalette';
 import type { DrawOpts, RenderView } from './renderTypes';
-import { FINISHED, TOTAL_MS, chipText, replanPhases, type Phases } from './replanTimeline';
+import { chipLayout, placeChip as placeChipBox, type Rect } from './chipPlacement';
+import { FINISHED, TOTAL_MS, chipText, chipTextCompact, replanPhases, type Phases } from './replanTimeline';
 import { arcLengths, cellCentres, pointAt, smoothRoute, subCurveEnd, type Curve } from './routeCurve';
 
 /** Radius (in cells) of the resting-glow sprite and of the brighter rim sprite. */
@@ -341,15 +342,17 @@ class SearchShow {
     this.chip = null;
     if (!ev || !this.animated || this.flood.count === 0) return;
     const { cell, dpr, pal, w } = v;
-    const text = chipText(ev.mode, ev.incremental, ev.found, this.flood.count);
-    const font = '500 11px "Martian Mono", ui-monospace, Menlo, monospace';
+    const mapW = v.w * cell;
+    const mapH = v.h * cell;
+    const lay = chipLayout(mapW);
+    const text = (lay.compact ? chipTextCompact : chipText)(ev.mode, ev.incremental, ev.found, this.flood.count);
+    const font = `500 ${lay.font}px "Martian Mono", ui-monospace, Menlo, monospace`;
     const probe = makeCanvas(2, 2).getContext('2d')!;
     probe.font = font;
     const tw = Math.ceil(probe.measureText(text).width);
-    const padX = 12;
-    const dotR = 3.5;
-    const h = 24;
-    const wCss = tw + padX * 2 + dotR * 2 + 7;
+    const { padX, dotR, h } = lay;
+    const gapDot = lay.compact ? 5 : 7;
+    const wCss = tw + padX * 2 + dotR * 2 + gapDot;
     const pad = 10;
     const c = makeCanvas((wCss + pad * 2) * dpr, (h + pad * 2) * dpr);
     const g = c.getContext('2d')!;
@@ -370,31 +373,49 @@ class SearchShow {
     g.font = font;
     g.textBaseline = 'middle';
     g.fillStyle = pal.drone;
-    g.fillText(text, pad + padX + dotR * 2 + 7, pad + h / 2 + 0.5);
+    g.fillText(text, pad + padX + dotR * 2 + gapDot, pad + h / 2 + 0.5);
     this.chip = c;
     this.chipW = wCss + pad * 2;
     this.chipH = h + pad * 2;
-    // Pin the chip just outside the flood's bounding box (above it, or below when the top is cramped),
-    // horizontally centred on the flood centroid, so it never covers the repair itself.
+    // Bounding box of the flood, in px.
     const f = this.flood;
-    let sx = 0;
+    let minX = Infinity;
+    let maxX = -Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
     for (let k = 0; k < f.count; k++) {
       const cc = f.order[k];
+      const x = cc % w;
       const y = (cc / w) | 0;
-      sx += (cc % w) + 0.5;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
     }
-    const mapW = v.w * cell;
-    const mapH = v.h * cell;
-    const gap = 8;
-    let y = minY * cell - h - gap;
-    if (y < 4) y = (maxY + 1) * cell + gap;
-    y = Math.min(y, mapH - h - 4);
-    this.chipX = Math.min(Math.max(4 - pad, (sx / f.count) * cell - this.chipW / 2), mapW - this.chipW + pad - 4);
-    this.chipY = Math.max(4, y) - pad;
+    // The drawn route, the drone (route start) and the goal pad (route end) stay uncovered.
+    const cur = this.cur;
+    const rn = cur ? cur.n : 0;
+    const route = new Float32Array(2 * rn);
+    for (let i = 0; i < 2 * rn; i++) route[i] = (cur as Curve).pts[i] * cell;
+    const avoid: Rect[] = [];
+    if (rn > 0) {
+      const r = cell * 1.1;
+      avoid.push({ x: route[0] - r, y: route[1] - r, w: 2 * r, h: 2 * r });
+      avoid.push({ x: route[2 * rn - 2] - r, y: route[2 * rn - 1] - r, w: 2 * r, h: 2 * r });
+    }
+    const p = placeChipBox({
+      box: { w: wCss, h },
+      map: { w: mapW, h: mapH },
+      margin: lay.compact ? 4 : 8,
+      gap: 8,
+      flood: { x: minX * cell, y: minY * cell, w: (maxX - minX + 1) * cell, h: (maxY - minY + 1) * cell },
+      route,
+      routeN: rn,
+      routePad: Math.max(6, cell * 0.6),
+      avoid,
+    });
+    this.chipX = p.x - pad;
+    this.chipY = p.y - pad;
   }
 
   drawChip(ctx: CanvasRenderingContext2D, v: RenderView): void {

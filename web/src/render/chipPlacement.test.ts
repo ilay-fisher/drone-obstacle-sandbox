@@ -41,9 +41,9 @@ describe('rectsOverlap / rectHitsPolyline', () => {
 
 describe('placeChip', () => {
   it('uses "above the flood" when it clears the route', () => {
-    const r = placeChip(base({ flood: { x: 400, y: 340, w: 80, h: 60 } }));
+    const r = placeChip(base({ flood: { x: 400, y: 380, w: 80, h: 60 } }));
     expect(r.anchor).toBe('above');
-    expect(r.y + BOX.h).toBeLessThanOrEqual(340);
+    expect(r.y + BOX.h).toBeLessThanOrEqual(380);
   });
 
   it('never overlaps the route, in any anchor', () => {

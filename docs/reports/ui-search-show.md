@@ -58,10 +58,12 @@ Times in ms. Frame time is locked to the 60 Hz display (16.7 ms); per-frame JS w
 2. Round 2. The D* repair was invisible (2 cells at low alpha, and the chip sat on top of it). Ember sprite 1.6x larger, hotter mix toward orange (0.8), alpha 0.8, and the chip now pins just outside the flood's bounding box instead of at its centroid. The repair is now a clear ember spot.
 3. Tooling caught two of my own mistakes: a contact sheet was stale because `ffmpeg` was cut by `| head`, and the image viewer cached by filename. Re-rendered under new names and verified timestamps.
 
+4. Review round 1 (manager). The chip could sit on the orange route, and on a 390 px map it was about 45% of the map width. Chip placement is now a pure function (`render/chipPlacement.ts`, unit tested): it tries above, below, right and left of the flood bbox, then the map corners nearest the flood, and takes the first box that clears the smoothed route (with clearance), the drone and the goal pad and stays inside the map margin; if nothing clears it takes the least-overlapping candidate. On maps under 500 px wide the chip uses a smaller font (9 to 10.5 px) and padding and a compact text ("354 searched", "2 repaired"; same honest verb and count). The 390 still is retaken scrolled to the top so the header is not clipped, and both contact sheets, after-1440 and after-390 were retaken.
+
 ## Still weak
 
 - The D* ember spot is honest but small. For a 2-cell repair it is a subtle moment; it relies on the contrast with A*.
-- Chip placement is "above the flood bbox"; on a large flood near the top edge it falls below and can overlap a building face.
+- The chip avoids the route, drone and goal pad, but not buildings or the flood itself, so on a big A* flood it usually lands on a building face in the nearest open corner of the box search. If every candidate is blocked it falls back to the least-bad one.
 - The wavefront's sprite stamping shows faint dither/pixel texture at its leading edge for the first ~100 ms of a big A* flood.
 - Reduced-motion still shows the chip (it is information, not motion); some may prefer it hidden.
 - `incremental` is a JS-side best effort (same goal as previous D* call since last clear/import); the engine does not expose it.

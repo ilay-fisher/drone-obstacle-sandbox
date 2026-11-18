@@ -79,6 +79,11 @@ export function replanPhases(elapsedMs: number, reduced: boolean): Phases {
  * from-scratch call (the first, or after the goal moved or the map was cleared) says
  * "searched", because that is what it did.
  */
+export function chipTextCompact(mode: PlanMode, incremental: boolean, found: boolean, cells: number): string {
+  const text = `${cells} ${mode === 'dstar' && incremental ? 'repaired' : 'searched'}`;
+  return found ? text : `${text}, no route`;
+}
+
 export function chipText(mode: PlanMode, incremental: boolean, found: boolean, cells: number): string {
   const verb = mode === 'dstar' && incremental ? 'repaired' : 'searched';
   const text = `${verb} ${cells} ${cells === 1 ? 'cell' : 'cells'}`;
