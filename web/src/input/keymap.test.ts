@@ -84,3 +84,17 @@ describe('shortcut table', () => {
     }
   });
 });
+
+describe('replay intro shortcut', () => {
+  it('? replays the intro', () => {
+    expect(resolveShortcut({ key: '?' })).toEqual({ type: 'replayIntro' });
+  });
+  it('is not repeated while held and leaves modified keys alone', () => {
+    expect(resolveShortcut({ key: '?', repeat: true })).toBeNull();
+    expect(resolveShortcut({ key: '?', ctrlKey: true })).toBeNull();
+    expect(resolveShortcut({ key: '?', metaKey: true })).toBeNull();
+  });
+  it('is documented in the shortcut table', () => {
+    expect(SHORTCUTS.some((s) => s.keys === '?')).toBe(true);
+  });
+});
