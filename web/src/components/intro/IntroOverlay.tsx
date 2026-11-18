@@ -19,7 +19,12 @@ export function IntroPill({ ui }: { ui: IntroUi }) {
       <span className="intro-caption" role="status" aria-live="polite">
         <span key={ui.caption} className="intro-caption-text">{ui.caption}</span>
       </span>
-      {!outro && <span className="intro-skip" aria-hidden="true"><kbd>Esc</kbd> skip</span>}
+      {!outro && (
+        <span className="intro-skip" aria-hidden="true">
+          <span className="skip-key"><kbd>Esc</kbd> skip</span>
+          <span className="skip-tap">Tap to skip</span>
+        </span>
+      )}
     </div>
   );
 }
