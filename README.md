@@ -9,6 +9,8 @@ PostgreSQL service stores scenarios and mission telemetry.
 
 **Live demo:** https://ilay-fisher.github.io/drone-obstacle-sandbox/ (the demo runs in the browser only, with no backend, so saving and loading scenarios is disabled; run the full stack locally for persistence).
 
+**First visit:** a ten-second guided intro plays once (a city, an A* route, a wall, a D* Lite repair, then "Your turn"). Esc or any click skips it; press `?` or use the Intro key in the console to replay it. `?intro=0` turns it off and `?intro=1` forces it (handy for demos and screenshots). With reduced motion it is a static four-panel card instead.
+
 Delivery plan and per-workstream reports: `docs/WORKFLOW.html`, `docs/reports/`.
 
 ## Architecture
