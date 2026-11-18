@@ -209,17 +209,31 @@ function rotorSprite(cs: number, dpr: number, pal: Palette): Sprite {
     g.arc(m, m, R * 0.95, 0, Math.PI * 2);
     g.fill();
   }
-  // Thin dark rim, then a faint bevel highlight on the top-left arc.
+  // Rim: a thin dark outer line, a faint light line all round so the disc reads against dark
+  // ground, and a brighter bevel on the top-left arc (the one light source), fading to the sides.
   g.strokeStyle = 'rgba(0,0,0,0.5)';
   g.lineWidth = Math.max(0.8, cs * 0.03);
   g.beginPath();
-  g.arc(m, m, R * 0.97, 0, Math.PI * 2);
+  g.arc(m, m, R * 0.985, 0, Math.PI * 2);
   g.stroke();
-  g.strokeStyle = hi(0.5);
-  g.lineWidth = Math.max(0.8, cs * 0.03);
+  const lw = Math.max(1, cs * 0.045);
+  g.strokeStyle = hi(0.2);
+  g.lineWidth = lw * 0.8;
   g.beginPath();
-  g.arc(m, m, R * 0.93, Math.PI * 1.02, Math.PI * 1.55);
+  g.arc(m, m, R * 0.92, 0, Math.PI * 2);
   g.stroke();
+  g.lineCap = 'round';
+  g.strokeStyle = hi(0.42);
+  g.lineWidth = lw;
+  g.beginPath();
+  g.arc(m, m, R * 0.92, Math.PI * 0.82, Math.PI * 1.68);
+  g.stroke();
+  g.strokeStyle = hi(0.85);
+  g.lineWidth = lw;
+  g.beginPath();
+  g.arc(m, m, R * 0.92, Math.PI * 1.0, Math.PI * 1.5);
+  g.stroke();
+  g.lineCap = 'butt';
   g.fillStyle = col(1);
   g.beginPath();
   g.arc(m, m, cs * 0.06, 0, Math.PI * 2);

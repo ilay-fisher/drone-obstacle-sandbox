@@ -19,15 +19,19 @@
  * drone sits at its final heading and landing is instant.
  */
 import type { Simulation } from '../engine/simulation';
-import { PULSE_MS, nearestChange, pulsePhases, shouldPulse } from './blockagePulse';
+import { nearestChange, pulseDuration, pulseMode, pulsePhases, type PulseMode } from './blockagePulse';
 import {
-  MAX_BANK, coverFor, createDroneMotion, kickRecoil, lampMix, shadowLook, speedNorm, stepDroneMotion, type DroneMotion,
+  MAX_BANK, coverFor, createDroneMotion, droneDrawScale, footprintCover, kickRecoil, lampMix, shadowLook, speedNorm, stepDroneMotion, type DroneMotion,
 } from './droneMotion';
 import { NAV_X, ROTOR_OFFSET, buildDroneSprites, buildFanSprite, type DroneSprites, type Sprite } from './droneSprites';
 import { collectHits, createScanHits, sweepAngle } from './lidarScan';
 import type { DrawOpts, RenderView } from './renderTypes';
 
 const MAX_HITS = 96;
+/** Half length of a LiDAR tick, in cells. */
+const TICK_HALF = 0.46;
+/** Half side of the square footprint sampled under the shadow, in cells. */
+const SHADOW_HALF = 0.6;
 
 /** Per-simulation drone state: motion, sprites, the last event seen and the running pulse. */
 class DroneShow {
@@ -41,15 +45,27 @@ class DroneShow {
   private seq = -1;
   private prevEventTs = -Infinity;
   private pulseStart = -Infinity;
+  private pulseKind: PulseMode = 'full';
+  /** Shadow footprint cover of the cell area under the shadow, 0..1 (see `footprintCover`). */
+  private readonly isWall: (x: number, y: number) => boolean;
+
+  constructor(sim: Simulation) {
+    this.isWall = (x, y) => wallAt(sim, x, y);
+  }
+
+  /** Share of the shadow's footprint, centred at (cx, cy) in cells, that lies on buildings. */
+  shadowCover(cx: number, cy: number): number {
+    return footprintCover(this.isWall, cx, cy, SHADOW_HALF);
+  }
   /** Pad lamp, 0 (orange) to 1 (green). */
   lamp = 0;
 
-  /** Rebuilds whatever sprites went stale. */
-  ensure(v: RenderView, lidarRadius: number): void {
-    const key = `${v.cell.toFixed(2)}:${v.dpr}:${v.pal.wall}:${v.pal.nav}:${v.pal.drone}`;
+  /** Rebuilds whatever sprites went stale. `dc` is the drone's own cell size (cell times its draw scale). */
+  ensure(v: RenderView, dc: number, lidarRadius: number): void {
+    const key = `${dc.toFixed(2)}:${v.dpr}:${v.pal.wall}:${v.pal.nav}:${v.pal.drone}`;
     if (key !== this.spriteKey) {
       this.spriteKey = key;
-      this.sprites = buildDroneSprites(v.cell, v.dpr, v.pal);
+      this.sprites = buildDroneSprites(dc, v.dpr, v.pal);
       this.fanKey = '';
     }
     const fkey = `${key}:${Math.round(lidarRadius * v.cell)}`;
@@ -72,7 +88,7 @@ class DroneShow {
     if (!ev || ev.seq === this.seq) return;
     this.seq = ev.seq;
     const near = nearestChange(ev.changed, sim.width, sim.droneX, sim.droneY, sim.lidarRadius);
-    const go = shouldPulse({
+    const mode = pulseMode({
       kind: ev.kind,
       nearChange: near >= 0,
       reduced: v.reduced,
@@ -81,8 +97,9 @@ class DroneShow {
       msSincePrevPulse: now - this.pulseStart,
     });
     this.prevEventTs = ev.timestamp;
-    if (!go) return;
+    if (mode === 'none') return;
     this.pulseStart = now;
+    this.pulseKind = mode;
     // Recoil away from the nearest change; straight back when it is on top of the drone.
     const dx = sim.droneX - ((near % sim.width) + 0.5);
     const dy = sim.droneY - (((near / sim.width) | 0) + 0.5);
@@ -94,13 +111,17 @@ class DroneShow {
   pulseAge(now: number): number {
     return now - this.pulseStart;
   }
+
+  get currentPulseMode(): PulseMode {
+    return this.pulseKind;
+  }
 }
 
 const shows = new WeakMap<Simulation, DroneShow>();
 
 function showFor(sim: Simulation): DroneShow {
   let s = shows.get(sim);
-  if (!s) { s = new DroneShow(); shows.set(sim, s); }
+  if (!s) { s = new DroneShow(sim); shows.set(sim, s); }
   return s;
 }
 
@@ -124,7 +145,9 @@ function wallAt(sim: Simulation, x: number, y: number): boolean {
 export function drawDroneLayer(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, o: DrawOpts, now: number): void {
   const { cell, pal } = v;
   const show = showFor(sim);
-  show.ensure(v, sim.lidarRadius);
+  const scale = droneDrawScale(cell);
+  const dc = cell * scale;
+  show.ensure(v, dc, sim.lidarRadius);
   const sp = show.sprites;
   if (!sp) return;
   const dt = show.dt(now);
@@ -134,10 +157,12 @@ export function drawDroneLayer(ctx: CanvasRenderingContext2D, sim: Simulation, v
   const py = sim.droneY;
   const m = show.motion;
   const under = wallAt(sim, Math.floor(px), Math.floor(py));
-  const beside = wallAt(sim, Math.floor(px + 0.7), Math.floor(py + 0.7));
+  // The shadow lies where the drone is lit from the top left: sample the cells under it.
+  const at = shadowLook(speedNorm(m.speed), m.alt.x, 0);
+  const cover = coverFor(under, under ? 0 : show.shadowCover(px + at.dx * scale, py + at.dy * scale));
   stepDroneMotion(m, {
     x: px, y: py, heading: sim.heading, reached: sim.stats.status === 'Reached',
-    cover: coverFor(under, beside), reduced: v.reduced,
+    cover, reduced: v.reduced,
   }, dt);
 
   const dx = px * cell;
@@ -146,14 +171,14 @@ export function drawDroneLayer(ctx: CanvasRenderingContext2D, sim: Simulation, v
   if (o.showLidar) drawLidar(ctx, sim, v, show, now, dx, dy);
 
   const age = show.pulseAge(now);
-  if (age < PULSE_MS) drawPulse(ctx, sim, v, dx, dy, age);
+  if (age < pulseDuration(show.currentPulseMode)) drawPulse(ctx, sim, v, dx, dy, age, show.currentPulseMode);
 
   // Ground shadow: lower right, pre-blurred, cross-fading tight and soft.
   const sN = speedNorm(m.speed);
   const alt = m.alt.x;
   const look = shadowLook(sN, alt, m.cover);
   ctx.save();
-  ctx.translate(dx + look.dx * cell, dy + look.dy * cell);
+  ctx.translate(dx + look.dx * dc, dy + look.dy * dc);
   ctx.rotate(m.heading.x);
   ctx.scale(look.scale, look.scale);
   const ss = sp.shadowTight.size;
@@ -172,11 +197,11 @@ export function drawDroneLayer(ctx: CanvasRenderingContext2D, sim: Simulation, v
   ctx.save();
   ctx.translate(dx + m.rx.x * cell, dy + m.ry.x * cell);
   ctx.rotate(m.heading.x);
-  ctx.transform(1 + 0.06 * sN, 0, 0.5 * bank, 1 - 0.24 * kAbs, 0, k * cell * 0.1);
+  ctx.transform(1 + 0.06 * sN, 0, 0.5 * bank, 1 - 0.24 * kAbs, 0, k * dc * 0.1);
   ctx.scale(lift, lift);
   const bs = sp.body.size;
   ctx.drawImage(sp.body.canvas, -bs / 2, -bs / 2, bs, bs);
-  const P = cell * ROTOR_OFFSET;
+  const P = dc * ROTOR_OFFSET;
   const rs = sp.rotor.size;
   for (let i = 0; i < 4; i++) {
     const sx = i & 1 ? -1 : 1;
@@ -195,10 +220,10 @@ export function drawDroneLayer(ctx: CanvasRenderingContext2D, sim: Simulation, v
   const blink = v.reduced ? 1 : 0.72 + 0.28 * Math.sin((now / 1000) * 5.2);
   const gs = sp.glow.size;
   ctx.globalAlpha = blink;
-  ctx.drawImage(sp.glow.canvas, NAV_X * cell - gs / 2, -gs / 2, gs, gs);
+  ctx.drawImage(sp.glow.canvas, NAV_X * dc - gs / 2, -gs / 2, gs, gs);
   ctx.fillStyle = pal.nav;
   ctx.beginPath();
-  ctx.arc(NAV_X * cell, 0, cell * 0.065, 0, Math.PI * 2);
+  ctx.arc(NAV_X * dc, 0, dc * 0.065, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -227,57 +252,68 @@ function drawLidar(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView
   ctx.drawImage(show.fan.canvas, -fs / 2, -fs / 2, fs, fs);
   ctx.restore();
 
-  // Ticks on the walls the beam edge has just passed: a short bar across the ray at the wall's near face.
+  // Ticks on the walls the beam edge has just passed: a bar across the ray at the wall's near
+  // face. Neutral paper colour (the accent stays with the nav light and the pulse), thick and long
+  // enough to read at DPR 1, with a dark under-stroke so it holds on light and dark cells.
   const hits = show.hits;
   const n = collectHits(sim.planner.grid(), sim.width, sim.height, sim.droneX, sim.droneY, sim.lidarRadius, edge, hits);
   if (n === 0) return;
-  ctx.strokeStyle = pal.goal;
-  ctx.lineWidth = Math.max(1.4, cell * 0.1);
+  const half = cell * TICK_HALF;
+  const lw = Math.max(2.2, cell * 0.17);
   ctx.lineCap = 'round';
-  const half = cell * 0.3;
-  for (let i = 0; i < n; i++) {
-    const c = hits.cells[i];
-    const wx = ((c % sim.width) + 0.5) * cell;
-    const wy = (((c / sim.width) | 0) + 0.5) * cell;
-    const ex = wx - dx;
-    const ey = wy - dy;
-    const len = Math.hypot(ex, ey) || 1;
-    const ux = ex / len;
-    const uy = ey / len;
-    // Near face of the cell, 0.45 cell back toward the drone; bar perpendicular to the ray.
-    const cx = wx - ux * cell * 0.45;
-    const cy = wy - uy * cell * 0.45;
-    ctx.globalAlpha = 0.9 * hits.amount[i];
-    ctx.beginPath();
-    ctx.moveTo(cx - uy * half, cy + ux * half);
-    ctx.lineTo(cx + uy * half, cy - ux * half);
-    ctx.stroke();
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.strokeStyle = pass === 0 ? 'rgba(0,0,0,0.55)' : pal.drone;
+    ctx.lineWidth = pass === 0 ? lw + 1.6 : lw;
+    for (let i = 0; i < n; i++) {
+      const c = hits.cells[i];
+      const wx = ((c % sim.width) + 0.5) * cell;
+      const wy = (((c / sim.width) | 0) + 0.5) * cell;
+      const ex = wx - dx;
+      const ey = wy - dy;
+      const len = Math.hypot(ex, ey) || 1;
+      const ux = ex / len;
+      const uy = ey / len;
+      // Near face of the cell, 0.45 cell back toward the drone; bar perpendicular to the ray.
+      const cx = wx - ux * cell * 0.45;
+      const cy = wy - uy * cell * 0.45;
+      ctx.globalAlpha = (pass === 0 ? 0.5 : 0.95) * hits.amount[i];
+      ctx.beginPath();
+      ctx.moveTo(cx - uy * half, cy + ux * half);
+      ctx.lineTo(cx + uy * half, cy - ux * half);
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
 }
 
-/** The blockage ring: an orange stroke expanding from the drone, with a fainter ring just behind it. */
-function drawPulse(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, dx: number, dy: number, ageMs: number): void {
+/**
+ * The blockage ring: an orange stroke expanding from the drone. The full pulse adds a soft halo
+ * and a fainter ring just behind it; the reduced one (a flood is already playing) is a single
+ * thin, faint ring, so the flood stays the one loud motion.
+ */
+function drawPulse(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, dx: number, dy: number, ageMs: number, mode: PulseMode): void {
   const { cell, pal } = v;
-  const p = pulsePhases(ageMs);
+  const p = pulsePhases(ageMs, mode);
   if (!p.active) return;
   const rMax = Math.max(sim.lidarRadius, 3) * cell * 1.02;
   const r = cell * 1.0 + p.radius * (rMax - cell * 1.0);
   ctx.lineCap = 'butt';
   ctx.strokeStyle = pal.route;
-  // A thin soft halo behind the rim; never a fill.
-  ctx.globalAlpha = 0.2 * p.alpha;
-  ctx.lineWidth = cell * (0.22 * p.weight + 0.08);
-  ctx.beginPath();
-  ctx.arc(dx, dy, r, 0, Math.PI * 2);
-  ctx.stroke();
+  if (p.full) {
+    // A thin soft halo behind the rim; never a fill.
+    ctx.globalAlpha = 0.2 * p.alpha;
+    ctx.lineWidth = cell * (0.22 * p.weight + 0.08);
+    ctx.beginPath();
+    ctx.arc(dx, dy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.globalAlpha = 0.95 * p.alpha;
-  ctx.lineWidth = Math.max(1.5, cell * 0.13 * p.weight + 1);
+  ctx.lineWidth = p.full ? Math.max(1.5, cell * 0.13 * p.weight + 1) : Math.max(1, cell * 0.1 * p.weight + 0.6);
   ctx.beginPath();
   ctx.arc(dx, dy, r, 0, Math.PI * 2);
   ctx.stroke();
   const r2 = r - cell * (0.5 + 0.9 * p.radius);
-  if (r2 > cell * 0.6) {
+  if (p.full && r2 > cell * 0.6) {
     ctx.strokeStyle = pal.goal;
     ctx.globalAlpha = 0.45 * p.alpha;
     ctx.lineWidth = Math.max(1, cell * 0.07 * p.weight + 0.6);

@@ -5,6 +5,7 @@ import {
   bankTarget,
   coverFor,
   droneDrawScale,
+  MAX_DRONE_SCALE,
   footprintCover,
   createDroneMotion,
   droneFinalState,
@@ -302,9 +303,9 @@ describe('footprintCover (what the shadow actually lies on)', () => {
   it('grows smoothly as the shadow slides onto a wall (no pop)', () => {
     let prev = -1;
     let maxStep = 0;
-    for (let x = 4; x <= 6.5; x += 0.05) {
+    for (let x = 4; x <= 7.05; x += 0.05) {
       const c = footprintCover(wallRight(5.5), x, 5.5, 0.6);
-      expect(c).toBeGreaterThanOrEqual(prev);
+      expect(c).toBeGreaterThanOrEqual(prev - 1e-9);
       if (prev >= 0) maxStep = Math.max(maxStep, c - prev);
       prev = c;
     }
@@ -332,7 +333,7 @@ describe('droneDrawScale (minimum on-screen size)', () => {
   });
   it('never shrinks, and caps the lift on tiny maps', () => {
     expect(droneDrawScale(100)).toBe(1);
-    expect(droneDrawScale(2)).toBeLessThanOrEqual(1.7);
+    expect(droneDrawScale(2)).toBe(MAX_DRONE_SCALE);
     expect(droneDrawScale(2)).toBeGreaterThanOrEqual(1);
   });
   it('is monotone: a smaller cell never gets a smaller scale', () => {
@@ -346,5 +347,14 @@ describe('droneDrawScale (minimum on-screen size)', () => {
   it('falls back to 1 for nonsense input', () => {
     expect(droneDrawScale(0)).toBe(1);
     expect(droneDrawScale(NaN)).toBe(1);
+  });
+  it('reaches the minimum span on the real 390 px phone map (cell 358 / 48) without hitting the cap', () => {
+    const cell = 358 / 48;
+    const s = droneDrawScale(cell);
+    expect(s).toBeLessThan(MAX_DRONE_SCALE);
+    expect(cell * 1.8 * s).toBeCloseTo(34, 5);
+  });
+  it('leaves the 1440 desktop map (cell 1024 / 48) alone', () => {
+    expect(droneDrawScale(1024 / 48)).toBe(1);
   });
 });
