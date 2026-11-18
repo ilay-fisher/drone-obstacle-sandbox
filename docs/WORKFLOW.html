@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Workflow</title>
+<style>
+  :root { --bg:#0f1419; --panel:#182029; --line:#2c3a48; --text:#d8e1ea; --muted:#8a9bad;
+          --cpp:#5aa9e6; --web:#7bd389; --api:#f2b134; --mgr:#c792ea; --done:#7bd389; --todo:#8a9bad; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+    --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --muted:#59636e; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--text);
+         font:15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; } h2 { font-size: 18px; margin: 32px 0 12px; }
+  p.sub { color: var(--muted); margin: 0 0 16px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .card h3 { margin:0 0 6px; font-size:15px; } .card ul { margin:6px 0 0; padding-left:18px; }
+  .tag { display:inline-block; font-size:12px; padding:1px 8px; border-radius:99px; border:1px solid currentColor; }
+  .cpp{color:var(--cpp)} .web{color:var(--web)} .api{color:var(--api)} .mgr{color:var(--mgr)}
+  table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:top; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  svg text { fill: var(--text); font: 13px -apple-system, sans-serif; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Drone Sandbox: Delivery Workflow</h1>
+  <p class="sub">Manager: Opus (plans, reviews, merges). Workers: three Sonnet agents running in parallel, each in its own git worktree and branch. Contracts live in <code>docs/CONTRACTS.md</code>.</p>
+
+  <h2>Pipeline</h2>
+  <div class="scroll">
+  <svg viewBox="0 0 980 260" width="100%" style="min-width:720px" role="img" aria-label="Workflow diagram">
+    <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+    <g stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#a)">
+      <path d="M150,130 L210,50"/><path d="M150,130 L210,130"/><path d="M150,130 L210,210"/>
+      <path d="M430,50 L500,120"/><path d="M430,130 L500,130"/><path d="M430,210 L500,140"/>
+      <path d="M650,130 L710,130"/><path d="M850,130 L890,130"/>
+    </g>
+    <g stroke-width="1.5">
+      <rect x="10" y="100" width="140" height="60" rx="8" fill="var(--panel)" stroke="var(--mgr)"/>
+      <rect x="210" y="25" width="220" height="50" rx="8" fill="var(--panel)" stroke="var(--cpp)"/>
+      <rect x="210" y="105" width="220" height="50" rx="8" fill="var(--panel)" stroke="var(--web)"/>
+      <rect x="210" y="185" width="220" height="50" rx="8" fill="var(--panel)" stroke="var(--api)"/>
+      <rect x="500" y="100" width="150" height="60" rx="8" fill="var(--panel)" stroke="var(--mgr)"/>
+      <rect x="710" y="100" width="140" height="60" rx="8" fill="var(--panel)" stroke="var(--mgr)"/>
+      <rect x="890" y="105" width="80" height="50" rx="8" fill="var(--panel)" stroke="var(--done)"/>
+    </g>
+    <text x="80" y="126" text-anchor="middle">Contracts +</text><text x="80" y="144" text-anchor="middle">repo scaffold</text>
+    <text x="320" y="55" text-anchor="middle">A: C++ engine + Wasm</text>
+    <text x="320" y="135" text-anchor="middle">B: React visualizer</text>
+    <text x="320" y="215" text-anchor="middle">C: Fastify API + Postgres</text>
+    <text x="575" y="126" text-anchor="middle">Review each PR</text><text x="575" y="144" text-anchor="middle">tests, logs, docs</text>
+    <text x="780" y="126" text-anchor="middle">Merge + visual</text><text x="780" y="144" text-anchor="middle">verification</text>
+    <text x="930" y="135" text-anchor="middle">main</text>
+  </svg>
+  </div>
+
+  <h2>Workstreams</h2>
+  <div class="grid">
+    <div class="card"><h3><span class="tag cpp">A</span> C++ engine</h3>
+      Branch <code>feat/cpp-engine</code>
+      <ul><li><code>cpp/</code> planner, bindings, build.sh, tests</li>
+          <li><code>web/src/wasm/</code> built artifacts</li>
+          <li><code>.github/workflows/ci-cpp.yml</code></li></ul></div>
+    <div class="card"><h3><span class="tag web">B</span> Web visualizer</h3>
+      Branch <code>feat/web-ui</code>
+      <ul><li><code>web/</code> except <code>web/src/wasm/</code></li>
+          <li>TS fallback planner, bridge, canvas, HUD, controls, API client</li>
+          <li><code>.github/workflows/ci-web.yml</code></li></ul></div>
+    <div class="card"><h3><span class="tag api">C</span> Backend API</h3>
+      Branch <code>feat/backend-api</code>
+      <ul><li><code>server/</code> Fastify, zod, pino, pg, migrations</li>
+          <li><code>docker-compose.yml</code>, Dockerfile</li>
+          <li><code>.github/workflows/ci-server.yml</code></li></ul></div>
+  </div>
+
+  <h2>Status board</h2>
+  <table>
+    <tr><th>Step</th><th>Owner</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>Toolchain (Docker emsdk 4.0.10, Postgres 16, gh)</td><td class="mgr">Manager</td><td>Done</td><td>No local Emscripten install needed</td></tr>
+    <tr><td>Repo, README, contracts</td><td class="mgr">Manager</td><td>Done</td><td></td></tr>
+    <tr><td>C++ engine PR</td><td class="cpp">Agent A</td><td>In progress</td><td></td></tr>
+    <tr><td>Web visualizer PR</td><td class="web">Agent B</td><td>In progress</td><td></td></tr>
+    <tr><td>Backend API PR</td><td class="api">Agent C</td><td>In progress</td><td></td></tr>
+    <tr><td>Integration + visual check</td><td class="mgr">Manager</td><td>Pending</td><td></td></tr>
+  </table>
+
+  <h2>Review gate (every PR)</h2>
+  <table>
+    <tr><th>Check</th><th>How</th></tr>
+    <tr><td>Tests written first</td><td>Commit order in PR: <code>test:</code> commit precedes implementation</td></tr>
+    <tr><td>Tests green</td><td>CI workflow for the workstream + local run by manager</td></tr>
+    <tr><td>Docs + comments</td><td>Doc comments on public API, English, no emojis</td></tr>
+    <tr><td>Logging</td><td>pino on server, logger.ts on web, none in C++ hot loops</td></tr>
+    <tr><td>Contract compliance</td><td>Signatures match <code>docs/CONTRACTS.md</code></td></tr>
+    <tr><td>Visual check</td><td>Manager runs the app in the browser pane and inspects</td></tr>
+  </table>
+</main>
+</body>
+</html>
