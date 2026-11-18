@@ -1,7 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, checkHealth, decodeCells, encodeCells, listScenarios, postRun } from './client';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe('cell encoding', () => {
   it('round-trips every byte value', () => {
@@ -20,6 +23,9 @@ describe('cell encoding', () => {
 });
 
 describe('api client', () => {
+  // Pin demo mode off so these tests do not depend on an ambient VITE_DEMO_MODE (e.g. CI).
+  beforeEach(() => vi.stubEnv('VITE_DEMO_MODE', 'false'));
+
   it('flags network failures as offline', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('failed to fetch')));
     await expect(listScenarios()).rejects.toMatchObject({ offline: true });
