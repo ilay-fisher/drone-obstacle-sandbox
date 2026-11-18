@@ -18,7 +18,7 @@
  */
 import type { Simulation } from '../engine/simulation';
 import { diffGrid } from './blocks';
-import { drawDroneLayer } from './droneLayer';
+import { drawDroneLayer, landingLamp } from './droneLayer';
 import { EditFx, drawEditFx } from './mapFx';
 import { MapEntities } from './mapEntities';
 import { MapLayers } from './mapLayers';
@@ -119,7 +119,7 @@ export class Renderer {
     drawSearchUnder(ctx, sim, view, o, now);
     ctx.drawImage(layers.shade, 0, 0, W, H);
     if (this.fx.count > 0) drawEditFx(ctx, this.fx, layers, colors, now);
-    this.entities.drawGoal(ctx, sim, now, view.reduced);
+    this.entities.drawGoal(ctx, sim, now, view.reduced, landingLamp(sim, view.reduced));
     this.entities.drawPatrols(ctx, sim, dtSec, view.reduced);
     drawSearchOver(ctx, sim, view, o, now);
     drawDroneLayer(ctx, sim, view, o, now);

@@ -40,6 +40,7 @@ export class MapEntities {
   private puck: HTMLCanvasElement | null = null;
   private pad: HTMLCanvasElement | null = null;
   private glow: HTMLCanvasElement | null = null;
+  private glowGo: HTMLCanvasElement | null = null;
   private key = '';
   private cs = 16;
   private dpr = 1;
@@ -50,7 +51,7 @@ export class MapEntities {
 
   /** Rebuilds the sprites when the cell size, DPR or colours changed. */
   resize(cs: number, dpr: number, colors: MapColors): void {
-    const key = `${cs.toFixed(2)}:${dpr}:${colors.puck}:${colors.padRing}`;
+    const key = `${cs.toFixed(2)}:${dpr}:${colors.puck}:${colors.padRing}:${colors.lampGo}`;
     this.cs = cs;
     this.dpr = dpr;
     this.colors = colors;
@@ -58,7 +59,8 @@ export class MapEntities {
     this.key = key;
     this.puck = this.makePuck(cs, dpr, colors);
     this.pad = this.makePad(cs, dpr, colors);
-    this.glow = this.makeGlow(cs, dpr, colors);
+    this.glow = this.makeGlow(cs, dpr, colors.padGlow);
+    this.glowGo = this.makeGlow(cs, dpr, colors.glowGo);
   }
 
   /** Forgets glide state so pucks appear exactly on their cells next frame (map replaced). */
@@ -109,25 +111,46 @@ export class MapEntities {
     this.known = n;
   }
 
-  /** Draws the landing pad with its breathing ring. */
-  drawGoal(ctx: CanvasRenderingContext2D, sim: Simulation, nowMs: number, reduced: boolean): void {
-    const { pad, glow, colors, cs } = this;
-    if (!pad || !glow || !colors) return;
+  /**
+   * Draws the landing pad with its breathing ring. `lamp` (0 to 1) is how far the drone has
+   * landed: the lamp, the ring and the glow turn status-green and the ring opens out past the
+   * drone's rotors, so the landing reads even with the drone sitting on the pad.
+   */
+  drawGoal(ctx: CanvasRenderingContext2D, sim: Simulation, nowMs: number, reduced: boolean, lamp = 0): void {
+    const { pad, glow, glowGo, colors, cs } = this;
+    if (!pad || !glow || !glowGo || !colors) return;
     const b = breathPhase(nowMs, reduced);
     const cx = (sim.goalX + 0.5) * cs;
     const cy = (sim.goalY + 0.5) * cs;
     const gs = glow.width / this.dpr;
-    ctx.globalAlpha = 0.45 + 0.4 * b;
+    ctx.globalAlpha = (0.45 + 0.4 * b) * (1 - lamp);
     ctx.drawImage(glow, cx - gs / 2, cy - gs / 2, gs, gs);
+    if (lamp > 0) {
+      ctx.globalAlpha = lamp * (0.55 + 0.35 * b);
+      ctx.drawImage(glowGo, cx - gs / 2, cy - gs / 2, gs, gs);
+    }
     ctx.globalAlpha = 1;
     const ps = pad.width / this.dpr;
     ctx.drawImage(pad, cx - ps / 2, cy - ps / 2, ps, ps);
-    ctx.strokeStyle = colors.padRing;
     ctx.lineWidth = Math.max(1.2, cs * 0.06);
-    ctx.globalAlpha = 0.25 + 0.55 * (1 - b);
+    ctx.strokeStyle = colors.padRing;
+    ctx.globalAlpha = (0.25 + 0.55 * (1 - b)) * (1 - lamp);
     ctx.beginPath();
     ctx.arc(cx, cy, cs * (0.5 + 0.2 * b), 0, Math.PI * 2);
     ctx.stroke();
+    if (lamp > 0) {
+      ctx.strokeStyle = colors.lampGo;
+      ctx.globalAlpha = lamp * (0.4 + 0.5 * (1 - b));
+      ctx.lineWidth = Math.max(1.4, cs * 0.075);
+      ctx.beginPath();
+      ctx.arc(cx, cy, cs * (0.95 + 0.12 * b), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = colors.lampGo;
+      ctx.globalAlpha = lamp;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cs * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -197,16 +220,16 @@ export class MapEntities {
     return cv;
   }
 
-  private makeGlow(cs: number, dpr: number, c: MapColors): HTMLCanvasElement {
+  private makeGlow(cs: number, dpr: number, color: string): HTMLCanvasElement {
     const size = cs * 3.2;
     const cv = makeCanvas(size * dpr, size * dpr);
     const g = cv.getContext('2d');
     if (!g) return cv;
     const m = cv.width / 2;
     const grad = g.createRadialGradient(m, m, 0, m, m, m);
-    grad.addColorStop(0, c.padGlow);
-    grad.addColorStop(0.45, c.padGlow.replace(/[\d.]+\)$/, '0.12)'));
-    grad.addColorStop(1, c.padGlow.replace(/[\d.]+\)$/, '0)'));
+    grad.addColorStop(0, color);
+    grad.addColorStop(0.45, color.replace(/[\d.]+\)$/, '0.12)'));
+    grad.addColorStop(1, color.replace(/[\d.]+\)$/, '0)'));
     g.fillStyle = grad;
     g.fillRect(0, 0, cv.width, cv.height);
     return cv;

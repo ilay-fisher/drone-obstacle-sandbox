@@ -85,8 +85,8 @@ describe('collectHits', () => {
 
   it('finds nothing where the beam has not been recently', () => {
     const hits = createScanHits(64);
-    // Edge at 90 degrees (south): the east wall is a quarter turn behind, beyond the flash window.
-    const n = collectHits(g, w, w, drone.x, drone.y, 6, Math.PI / 2, hits);
+    // Edge due north: every wall is well behind it, beyond the flash window.
+    const n = collectHits(g, w, w, drone.x, drone.y, 6, (3 * Math.PI) / 2, hits);
     expect(n).toBe(0);
   });
 
@@ -106,9 +106,9 @@ describe('collectHits', () => {
 
   it('wraps around the seam at angle zero', () => {
     const hits = createScanHits(64);
-    // A wall slightly north of east sits at an angle just under 2pi; the edge is 0.2 rad past zero.
-    const g2 = grid(w, w, [[10, 7]]);
-    const n = collectHits(g2, w, w, drone.x, drone.y, 6, 0.2, hits);
+    // The wall sits at about -0.1 rad (just under 2pi); the edge is 0.2 rad past zero.
+    const g2 = grid(w, w, [[12, 8]]);
+    const n = collectHits(g2, w, w, drone.x, 8.9, 6, 0.2, hits);
     expect(n).toBe(1);
   });
 

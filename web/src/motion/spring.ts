@@ -52,6 +52,24 @@ export function springStep(s: SpringState, target: number, dtSec: number, cfg: S
   return { x, v };
 }
 
+/**
+ * Same integrator as `springStep`, but it updates `s` in place, so a per-frame caller (the
+ * drone layer) allocates nothing. Does nothing when already at rest on the target.
+ */
+export function springStepMut(s: SpringState, target: number, dtSec: number, cfg: SpringConfig): void {
+  if (s.x === target && s.v === 0) return;
+  let dt = Math.min(Math.max(dtSec, 0), MAX_DT);
+  let { x, v } = s;
+  while (dt > 0) {
+    const h = Math.min(dt, SUBSTEP);
+    v += (-cfg.stiffness * (x - target) - cfg.damping * v) * h;
+    x += v * h;
+    dt -= h;
+  }
+  s.x = x;
+  s.v = v;
+}
+
 /** True when the spring is close enough to its target, and slow enough, to stop simulating it. */
 export function isAtRest(s: SpringState, target: number, epsilon = 0.01): boolean {
   return Math.abs(s.x - target) < epsilon && Math.abs(s.v) < epsilon;
