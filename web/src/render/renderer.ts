@@ -46,6 +46,10 @@ export class Renderer {
   private windDirty = true;
   private shadeDirty = true;
   private fxEpoch = -1;
+  /** Cells that changed since the last shade bake; `dirtyAll` forces a full rebuild. */
+  private readonly dirty: Int32Array;
+  private dirtyCount = 0;
+  private dirtyAll = true;
   private ready = false;
 
   constructor(private readonly ctx: CanvasRenderingContext2D, private readonly sim: Simulation, pal: Palette, reduced: boolean) {
@@ -54,6 +58,7 @@ export class Renderer {
     this.fx = new EditFx(n, 256, reduced);
     this.flow = new WindFlow(sim.width, sim.height);
     this.vis = new Uint8Array(n);
+    this.dirty = new Int32Array(n + 512);
     this.prev = new Uint8Array(n);
     this.colors = buildMapColors(pal);
     this.view = { w: sim.width, h: sim.height, cell: 16, dpr: 1, pal, reduced };
@@ -68,6 +73,7 @@ export class Renderer {
     this.entities.resize(cell, dpr, this.colors);
     this.windDirty = true;
     this.shadeDirty = true;
+    this.dirtyAll = true;
     this.ready = true;
   }
 
@@ -87,16 +93,22 @@ export class Renderer {
     if (!this.ready) return;
     const { ctx, sim, layers, view, colors } = this;
     if (sim.gridVersion !== this.seenVersion) this.syncGrid(now);
-    if (this.fx.count > 0) this.fx.prune(now);
+    if (this.fx.count > 0 && this.fx.prune(now)) {
+      for (let k = 0; k < this.fx.removedCount; k++) this.markDirty(this.fx.removed[k]);
+    }
     if (this.windDirty) {
       layers.bakeBase(this.vis, colors);
-      this.flow.rebuild(this.vis, view.cell, view.dpr, colors.windRegion, view.pal.goal);
+      this.flow.rebuild(this.vis, view.cell, view.dpr, colors.windRegion, colors.windStreak);
       this.windDirty = false;
     }
     if (this.shadeDirty || this.fx.epoch !== this.fxEpoch) {
-      layers.bakeShade(this.vis, this.fx, colors);
+      // At most one bake per frame, redrawing only the blocks that changed.
+      if (this.dirtyAll) layers.bakeShade(this.vis, this.fx, colors);
+      else layers.bakeShade(this.vis, this.fx, colors, this.dirty, this.dirtyCount);
       this.fxEpoch = this.fx.epoch;
       this.shadeDirty = false;
+      this.dirtyAll = false;
+      this.dirtyCount = 0;
     }
 
     const W = view.w * view.cell;
@@ -127,6 +139,7 @@ export class Renderer {
       prev.set(vis);
       this.windDirty = true;
       this.shadeDirty = true;
+      this.dirtyAll = true;
       return;
     }
     const n = diffGrid(prev, vis, changed);
@@ -136,17 +149,28 @@ export class Renderer {
       this.entities.snap();
       this.windDirty = true;
       this.shadeDirty = true;
+      this.dirtyAll = true;
     } else {
       for (let k = 0; k < n; k++) {
         const c = changed[k];
         const was = prev[c];
         const is = vis[c];
         if (was === 2 || is === 2) this.windDirty = true;
-        if (was === 1 || is === 1) this.shadeDirty = true;
+        if (was === 1 || is === 1) {
+          this.shadeDirty = true;
+          this.markDirty(c);
+        }
         if (is === 1 && was !== 1) this.fx.begin(c, 'drop', now);
         else if (was === 1 && is !== 1) this.fx.begin(c, 'lift', now);
       }
     }
     prev.set(vis);
+  }
+
+  /** Records a cell whose cached picture is stale (no-op once a full rebuild is pending). */
+  private markDirty(cell: number): void {
+    if (this.dirtyAll) return;
+    if (this.dirtyCount >= this.dirty.length) { this.dirtyAll = true; return; }
+    this.dirty[this.dirtyCount++] = cell;
   }
 }

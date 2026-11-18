@@ -14,7 +14,7 @@
  * right, so the map reads as lit from one corner.
  */
 import type { EditFx } from './mapFx';
-import { blockHeight, labelBlocks } from './blocks';
+import { BLOCK_H_MAX, blockHeight, labelBlocks } from './blocks';
 import {
   addEdges, addFootprint, cellGeom, newCellGeom, paintSide, paintTop, shadeIndex,
 } from './buildings';
@@ -41,6 +41,8 @@ export class MapLayers {
   /** 1 where a cell counts as wall for joining: real walls plus walls that are lifting out. */
   readonly join: Uint8Array;
   private readonly windJoin: Uint8Array;
+  /** Scratch marks for the dirty-block search. */
+  private readonly mark: Uint8Array;
   private readonly geom = newCellGeom();
   cs = 16;
   dpr = 1;
@@ -51,6 +53,7 @@ export class MapLayers {
     this.stack = new Int32Array(n);
     this.join = new Uint8Array(n);
     this.windJoin = new Uint8Array(n);
+    this.mark = new Uint8Array(n);
   }
 
   /** Resizes every canvas for a new cell size or DPR and redraws the ground. Callers rebake base and shade after. */
@@ -105,8 +108,12 @@ export class MapLayers {
    * Rebuilds `shade` from the visual grid. Cells with a running drop or lift animation are
    * left out (the live pass draws them) but still count as joined neighbours, so a block does
    * not change shape the moment an animation starts or ends.
+   *
+   * `dirty` lists cell indices whose state changed since the last bake (`dirtyCount` of them);
+   * only the blocks touching those cells, plus a margin for height and shadow, are redrawn
+   * inside a clip. Pass `null` for a full rebuild (first bake, resize, bulk change).
    */
-  bakeShade(vis: Uint8Array, fx: EditFx, colors: MapColors): void {
+  bakeShade(vis: Uint8Array, fx: EditFx, colors: MapColors, dirty: Int32Array | null = null, dirtyCount = 0): void {
     const ctx = this.shade.getContext('2d');
     const sctx = this.scratch.getContext('2d');
     if (!ctx || !sctx) return;
@@ -118,14 +125,60 @@ export class MapLayers {
     }
     labelBlocks(join, w, h, ids, this.stack);
 
+    // Dirty rectangle in CSS px (whole layer when `dirty` is null).
+    let rx0 = 0, ry0 = 0, rx1 = w * cs, ry1 = h * cs;
+    let partial = false;
+    if (dirty !== null && dirtyCount > 0) {
+      const mark = this.mark;
+      mark.fill(0);
+      let bx0 = w, by0 = h, bx1 = -1, by1 = -1;
+      const grow = (c: number) => {
+        const x = c % w, y = (c / w) | 0;
+        if (x < bx0) bx0 = x;
+        if (x > bx1) bx1 = x;
+        if (y < by0) by0 = y;
+        if (y > by1) by1 = y;
+      };
+      for (let k = 0; k < dirtyCount; k++) {
+        const c = dirty[k];
+        grow(c);
+        const x = c % w, y = (c / w) | 0;
+        if (ids[c] >= 0) mark[ids[c]] = 1;
+        if (x > 0 && ids[c - 1] >= 0) mark[ids[c - 1]] = 1;
+        if (x < w - 1 && ids[c + 1] >= 0) mark[ids[c + 1]] = 1;
+        if (y > 0 && ids[c - w] >= 0) mark[ids[c - w]] = 1;
+        if (y < h - 1 && ids[c + w] >= 0) mark[ids[c + w]] = 1;
+      }
+      for (let i = 0; i < n; i++) if (ids[i] >= 0 && mark[ids[i]] === 1) grow(i);
+      const m = cs * (BLOCK_H_MAX + 1.3);
+      rx0 = Math.max(0, bx0 * cs - m * 0.6);
+      ry0 = Math.max(0, by0 * cs - m);
+      rx1 = Math.min(w * cs, (bx1 + 1) * cs + m);
+      ry1 = Math.min(h * cs, (by1 + 1) * cs + m * 0.6);
+      partial = true;
+    }
+    // Device px, rounded outward.
+    const dx0 = Math.floor(rx0 * dpr), dy0 = Math.floor(ry0 * dpr);
+    const dx1 = Math.min(this.shade.width, Math.ceil(rx1 * dpr)), dy1 = Math.min(this.shade.height, Math.ceil(ry1 * dpr));
+    const cx0 = dx0 / dpr, cy0 = dy0 / dpr, cx1 = dx1 / dpr, cy1 = dy1 / dpr;
+    // A cell matters when its footprint, height or shadow can reach the rectangle.
+    const reach = cs * (BLOCK_H_MAX + 1.3);
+    const touches = (x: number, y: number): boolean =>
+      !partial || ((x + 1) * cs + reach > cx0 && x * cs - reach < cx1 && (y + 1) * cs + reach > cy0 && y * cs - reach < cy1);
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
-    ctx.clearRect(0, 0, this.shade.width, this.shade.height);
+    ctx.clearRect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+    ctx.clip();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.geom;
 
     // Cast shadows: a soft one (blurred, the caster drawn off canvas so only its shadow lands)
-    // and a tight dark one right at the base. Both fall to the lower right, away from the light.
+    // and a tight dark one right at the base. Both fall to the lower right, away from the light,
+    // and grow with the block's height, so a tall block throws a longer shadow.
     ctx.fillStyle = '#000';
     ctx.shadowColor = colors.shadowSoft;
     ctx.shadowBlur = cs * 0.32 * dpr;
@@ -133,9 +186,11 @@ export class MapLayers {
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
       if (join[i] !== 1 || fx.has(i)) continue;
+      const x = i % w, y = (i / w) | 0;
+      if (!touches(x, y)) continue;
       const hpx = this.heightPx(i);
-      cellGeom(g, i % w, (i / w) | 0, join, w, h, cs);
-      addFootprint(ctx, g, -CASTER_OFFSET + cs * 0.16 + hpx * 0.75, cs * 0.14 + hpx * 0.55);
+      cellGeom(g, x, y, join, w, h, cs);
+      addFootprint(ctx, g, -CASTER_OFFSET + cs * 0.16 + hpx * 0.9, cs * 0.14 + hpx * 0.7);
     }
     ctx.fill();
     ctx.shadowColor = 'transparent';
@@ -145,11 +200,14 @@ export class MapLayers {
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
       if (join[i] !== 1 || fx.has(i)) continue;
+      const x = i % w, y = (i / w) | 0;
+      if (!touches(x, y)) continue;
       const hpx = this.heightPx(i);
-      cellGeom(g, i % w, (i / w) | 0, join, w, h, cs);
-      addFootprint(ctx, g, cs * 0.04 + hpx * 0.3, cs * 0.05 + hpx * 0.25);
+      cellGeom(g, x, y, join, w, h, cs);
+      addFootprint(ctx, g, cs * 0.04 + hpx * 0.34, cs * 0.05 + hpx * 0.28);
     }
     ctx.fill();
+    ctx.restore();
 
     // Buildings on a scratch layer so the light pass touches only them. Painter's order, row by
     // row: all sides of a row, then all its tops, so a southern block's top covers a northern
@@ -157,22 +215,26 @@ export class MapLayers {
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.globalCompositeOperation = 'source-over';
     sctx.globalAlpha = 1;
-    sctx.clearRect(0, 0, this.scratch.width, this.scratch.height);
+    sctx.clearRect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+    sctx.save();
+    sctx.beginPath();
+    sctx.rect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+    sctx.clip();
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const hi = new Path2D();
     const west = new Path2D();
     const lo = new Path2D();
-    const lw = Math.max(1, cs * 0.045);
+    const lw = Math.max(1.2, cs * 0.055);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const i = y * w + x;
-        if (join[i] !== 1 || fx.has(i)) continue;
+        if (join[i] !== 1 || fx.has(i) || !touches(x, y)) continue;
         cellGeom(g, x, y, join, w, h, cs);
         paintSide(sctx, g, colors, 0, 1);
       }
       for (let x = 0; x < w; x++) {
         const i = y * w + x;
-        if (join[i] !== 1 || fx.has(i)) continue;
+        if (join[i] !== 1 || fx.has(i) || !touches(x, y)) continue;
         const hc = blockHeight(ids[i]);
         const hpx = Math.max(2, hc * cs);
         cellGeom(g, x, y, join, w, h, cs);
@@ -194,15 +256,15 @@ export class MapLayers {
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.globalCompositeOperation = 'source-atop';
     const lg = sctx.createLinearGradient(0, 0, this.scratch.width, this.scratch.height);
-    lg.addColorStop(0, 'rgba(255,240,220,0.2)');
+    lg.addColorStop(0, 'rgba(210,225,240,0.10)');
     lg.addColorStop(0.5, 'rgba(255,255,255,0)');
-    lg.addColorStop(1, 'rgba(0,0,0,0.34)');
+    lg.addColorStop(1, 'rgba(0,0,0,0.3)');
     sctx.fillStyle = lg;
-    sctx.fillRect(0, 0, this.scratch.width, this.scratch.height);
+    sctx.fillRect(dx0, dy0, dx1 - dx0, dy1 - dy0);
     sctx.globalCompositeOperation = 'source-over';
+    sctx.restore();
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(this.scratch, 0, 0);
+    ctx.drawImage(this.scratch, dx0, dy0, dx1 - dx0, dy1 - dy0, dx0, dy0, dx1 - dx0, dy1 - dy0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 

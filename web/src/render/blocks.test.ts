@@ -100,8 +100,8 @@ describe('cellHash', () => {
   it('maps to a building height inside the allowed band', () => {
     for (let i = 0; i < 500; i++) {
       const h = blockHeight(i);
-      expect(h).toBeGreaterThanOrEqual(0.5);
-      expect(h).toBeLessThanOrEqual(0.95);
+      expect(h).toBeGreaterThanOrEqual(0.35);
+      expect(h).toBeLessThanOrEqual(1.3);
     }
   });
 });

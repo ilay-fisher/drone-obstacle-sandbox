@@ -23,8 +23,9 @@ export interface MapColors {
   /** Soft cast shadow and tight contact shadow, lower right. */
   shadowSoft: string;
   shadowTight: string;
-  /** Soft wind region fill and the flow streak colour (amber). */
+  /** Soft wind region fill and the flow streak colour: cool and neutral, orange is for live things only. */
   windRegion: string;
+  windStreak: string;
   /** Landing pad: plate, rim and breathing ring. */
   padPlate: string;
   padRim: string;
@@ -63,16 +64,17 @@ export function withAlpha(c: string, alpha: number): string {
 /** Builds the map colours from the canvas palette. */
 export function buildMapColors(pal: Palette): MapColors {
   const top: string[] = [];
-  for (let i = 0; i < TOP_SHADES; i++) top.push(mix(pal.wall, pal.drone, 0.0 + (0.26 * i) / (TOP_SHADES - 1)));
+  for (let i = 0; i < TOP_SHADES; i++) top.push(mix(mix(pal.wall, '#000000', 0.2), mix(pal.wall, pal.drone, 0.17), i / (TOP_SHADES - 1)));
   return {
     top,
-    side: mix(pal.wall, '#000000', 0.55),
-    edgeHi: withAlpha(pal.drone, 0.6),
-    edgeWest: withAlpha(pal.drone, 0.2),
+    side: mix(pal.wall, '#000000', 0.72),
+    edgeHi: withAlpha(pal.drone, 0.7),
+    edgeWest: withAlpha(pal.drone, 0.32),
     edgeLo: 'rgba(0,0,0,0.34)',
     shadowSoft: 'rgba(0,0,0,0.5)',
     shadowTight: 'rgba(0,0,0,0.42)',
-    windRegion: withAlpha(pal.goal, 0.11),
+    windRegion: 'rgba(130,165,200,0.12)',
+    windStreak: '#c9dcee',
     padPlate: mix(pal.ground, pal.drone, 0.1),
     padRim: withAlpha(pal.goal, 0.85),
     padRing: pal.goal,

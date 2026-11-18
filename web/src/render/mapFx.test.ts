@@ -95,6 +95,18 @@ describe('EditFx pool', () => {
     expect(fx.count).toBe(0);
   });
 
+  it('reports which cells a prune removed, so the renderer can rebake just those blocks', () => {
+    const fx = new EditFx(100, 8, false);
+    fx.begin(5, 'drop', 0);
+    fx.begin(9, 'drop', 0);
+    fx.begin(7, 'lift', 5000);
+    fx.prune(FX_DURATION_MS + 1);
+    expect(fx.removedCount).toBe(2);
+    expect([...fx.removed.slice(0, 2)].sort((a, b) => a - b)).toEqual([5, 9]);
+    fx.prune(FX_DURATION_MS + 2);
+    expect(fx.removedCount).toBe(0);
+  });
+
   it('restarts a cell that is edited again mid-animation, in place', () => {
     const fx = new EditFx(100, 8, false);
     fx.begin(5, 'drop', 0);

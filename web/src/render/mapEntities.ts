@@ -98,11 +98,11 @@ export class MapEntities {
       ctx.drawImage(puck, cx - size / 2, cy - size / 2, size, size);
       if (dx !== 0 || dy !== 0) {
         ctx.strokeStyle = colors.notch;
-        ctx.lineWidth = Math.max(1.5, cs * 0.1);
+        ctx.lineWidth = Math.max(2, cs * 0.17);
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(cx + dx * cs * 0.12, cy + dy * cs * 0.12);
-        ctx.lineTo(cx + dx * cs * 0.3, cy + dy * cs * 0.3);
+        ctx.moveTo(cx + dx * cs * 0.22, cy + dy * cs * 0.22);
+        ctx.lineTo(cx + dx * cs * 0.5, cy + dy * cs * 0.5);
         ctx.stroke();
       }
     }
@@ -132,13 +132,13 @@ export class MapEntities {
   }
 
   private makePuck(cs: number, dpr: number, c: MapColors): HTMLCanvasElement {
-    const size = cs * 1.5;
+    const size = cs * 2.1;
     const cv = makeCanvas(size * dpr, size * dpr);
     const g = cv.getContext('2d');
     if (!g) return cv;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const m = size / 2;
-    const r = cs * 0.37;
+    const r = cs * 0.7;
     // Contact shadow to the lower right, then the body: a lit dome, deep ember at the lower right.
     g.shadowColor = 'rgba(0,0,0,0.6)';
     g.shadowBlur = cs * 0.22 * dpr;

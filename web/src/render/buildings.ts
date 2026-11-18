@@ -7,6 +7,7 @@
  * between the two. Neighbouring wall cells join: no padding and no rounded corners on a shared
  * edge, so a block of cells is one rounded solid with no seam. Shadows fall to the lower right.
  */
+import { BLOCK_H_MAX, BLOCK_H_MIN } from './blocks';
 import type { MapColors } from './mapPalette';
 
 /** Reused geometry record. `rad` is the four corner radii (tl, tr, br, bl) for `roundRect`. */
@@ -61,7 +62,7 @@ export function addFootprint(ctx: CanvasPath, g: CellGeom, dx: number, dy: numbe
 
 /** Index of the top-face shade for a block height in cell units (see `BLOCK_H_*`). */
 export function shadeIndex(heightCells: number, shades: number): number {
-  const u = (heightCells - 0.14) / (0.46 - 0.14);
+  const u = (heightCells - BLOCK_H_MIN) / (BLOCK_H_MAX - BLOCK_H_MIN);
   return Math.max(0, Math.min(shades - 1, Math.floor(u * shades)));
 }
 

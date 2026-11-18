@@ -18,8 +18,8 @@ export function cellHash(i: number): number {
 }
 
 /** Lowest and highest building height, in cell units (a cell is 1 x 1). */
-export const BLOCK_H_MIN = 0.5;
-export const BLOCK_H_MAX = 0.95;
+export const BLOCK_H_MIN = 0.35;
+export const BLOCK_H_MAX = 1.3;
 
 /** Height in cell units for the block whose root cell index is `root`. One value per block, so a block reads as one solid. */
 export function blockHeight(root: number): number {

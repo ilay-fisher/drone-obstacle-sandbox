@@ -108,9 +108,13 @@ export class EditFx {
   count = 0;
   /** Bumps when the animating set changes. */
   epoch = 0;
+  /** Cells whose animation the last `prune` removed (first `removedCount` entries). */
+  readonly removed: Int32Array;
+  removedCount = 0;
 
   constructor(cellCount: number, capacity = 256, public reduced = false) {
     this.cells = new Int32Array(capacity);
+    this.removed = new Int32Array(capacity);
     this.start = new Float64Array(capacity);
     this.kinds = new Uint8Array(capacity);
     this.slotOf = new Int16Array(cellCount).fill(-1);
@@ -138,8 +142,13 @@ export class EditFx {
   /** Removes animations that finished by `nowMs`. Returns true when any were removed. */
   prune(nowMs: number): boolean {
     let removed = false;
+    this.removedCount = 0;
     for (let k = this.count - 1; k >= 0; k--) {
-      if (nowMs - this.start[k] >= FX_DURATION_MS) { this.remove(k); removed = true; }
+      if (nowMs - this.start[k] >= FX_DURATION_MS) {
+        this.removed[this.removedCount++] = this.cells[k];
+        this.remove(k);
+        removed = true;
+      }
     }
     if (removed) this.epoch++;
     return removed;
@@ -209,6 +218,17 @@ export function drawEditFx(
     ctx.fill();
     paintBody(ctx, geom, colors, shade, hpx, rise, fxState.squash, fxState.alpha);
     const top = hpx * fxState.squash;
+    // A moving wall catches the light: a cool wash that fades as it settles, and flares on the
+    // squash, so a wall in flight reads against the dark ground.
+    const air = kind === 'drop' ? fxState.rise / DROP_RISE_CELLS : (fxState.rise / LIFT_RISE_CELLS) * 0.6;
+    const glow = Math.min(0.5, 0.34 * air + (1 - fxState.squash) * 2.4) * fxState.alpha;
+    if (glow > 0.01) {
+      ctx.globalAlpha = glow;
+      ctx.fillStyle = colors.windStreak;
+      ctx.beginPath();
+      addFootprint(ctx, geom, 0, -rise - top);
+      ctx.fill();
+    }
     ctx.globalAlpha = fxState.alpha;
     ctx.lineWidth = lw;
     ctx.lineCap = 'round';
@@ -225,11 +245,12 @@ export function drawEditFx(
     addEdges(ctx, NOOP, NOOP, geom, top, rise, lw);
     ctx.stroke();
     if (kind === 'drop' && fxState.dust > 0 && fxState.dust < 1) {
-      ctx.globalAlpha = (1 - fxState.dust) * 0.45;
+      // Ground-plane puff: a flat ellipse that widens and fades.
+      ctx.globalAlpha = (1 - fxState.dust) * 0.3;
       ctx.strokeStyle = colors.edgeHi;
-      ctx.lineWidth = Math.max(1, cs * 0.05);
+      ctx.lineWidth = Math.max(1, cs * 0.04);
       ctx.beginPath();
-      ctx.arc((x + 0.5) * cs, (y + 0.58) * cs, cs * (0.5 + 0.6 * fxState.dust), 0, Math.PI * 2);
+      ctx.ellipse((x + 0.5) * cs, (y + 0.85) * cs, cs * (0.45 + 0.35 * fxState.dust), cs * (0.14 + 0.1 * fxState.dust), 0, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
