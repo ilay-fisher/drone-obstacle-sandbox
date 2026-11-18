@@ -25,7 +25,7 @@ Every readout is real. Nothing in `cpp/`, `server/`, the `Planner` interface or 
 - `components/intro/useIntro.ts`: one rAF loop (cancelled on skip, finish and unmount; a long frame advances the script by at most 100 ms). React state changes only on caption change.
 - `IntroPill` (aria-live polite, no pointer events), `IntroShield` (transparent click-to-skip sheet, not focusable), `IntroCard` (reduced motion).
 - Render: `DrawOpts.quiet` makes the search layer swallow events while the city paints.
-- Input: `?` is in the keymap (`replayIntro`) with tests, and a real `Intro ?` keycap sits in the console footer (focus ring, aria-label "Replay the intro").
+- Input: `?` is in the keymap (`replayIntro`) with tests, and a real `Intro ?` keycap sits in the console footer (focus ring, aria-label "Show the intro again" (not "Replay...", which a loose name match for the Play button would hit)).
 
 ## Skip and states
 

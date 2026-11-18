@@ -205,7 +205,7 @@ export function ControlPanel(p: ControlPanelProps) {
 
       {p.onReplayIntro && (
         <div className="panel-foot">
-          <Keycap legend="Intro" label="Replay the intro" shortcut="?" onClick={p.onReplayIntro} />
+          <Keycap legend="Intro" label="Show the intro again" shortcut="?" onClick={p.onReplayIntro} />
         </div>
       )}
     </div>
