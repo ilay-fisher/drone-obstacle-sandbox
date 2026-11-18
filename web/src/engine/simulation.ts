@@ -99,6 +99,11 @@ export class Simulation {
     this.height = planner.height;
   }
 
+  /** True once the mission has ended (reached, or blocked for too long). */
+  get over(): boolean {
+    return this.ended;
+  }
+
   /** Sets start and goal cells. Call `reset` afterwards to apply them. */
   setEndpoints(sx: number, sy: number, gx: number, gy: number): void {
     this.startX = sx; this.startY = sy; this.goalX = gx; this.goalY = gy;
@@ -154,7 +159,7 @@ export class Simulation {
       if (v !== 1 && this.patrolUnder[pi] !== v) { this.patrolUnder[pi] = v; this.needsReplan = true; }
       return;
     }
-    if (v === 1 && this.isEndpoint(x, y)) return;
+    if (v === 1 && (this.isEndpoint(x, y) || (x === Math.floor(this.droneX) && y === Math.floor(this.droneY)))) return;
     if (this.planner.getCell(x, y) !== v) { this.planner.setCell(x, y, v); this.needsReplan = true; }
   }
 
