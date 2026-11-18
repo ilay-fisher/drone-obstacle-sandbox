@@ -62,9 +62,11 @@ describe('error handling', () => {
       codes.push((await app.inject({ method: 'POST', url: '/api/runs', payload: validRun() })).statusCode);
     }
     expect(codes).toEqual([201, 201, 429]);
-    const limited = await app.inject({ method: 'POST', url: '/api/scenarios', payload: validScenario() });
+    const limited = await app.inject({ method: 'POST', url: '/api/runs', payload: validRun() });
     expect(limited.statusCode).toBe(429);
     expect(limited.json().error.code).toBe('rate_limited');
+    // The limit is per route: the scenario POST has its own budget.
+    expect((await app.inject({ method: 'POST', url: '/api/scenarios', payload: validScenario() })).statusCode).toBe(201);
     // GET routes are not limited.
     for (let i = 0; i < 5; i++) {
       expect((await app.inject({ method: 'GET', url: '/api/runs' })).statusCode).toBe(200);

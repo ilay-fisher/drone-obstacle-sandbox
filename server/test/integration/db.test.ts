@@ -107,7 +107,7 @@ describe.skipIf(!url)('postgres integration', () => {
     expect(s.avgReplanMs).toBeCloseTo(5.5, 9);
     expect(s.p95ReplanMs).toBeCloseTo(9.55, 9);
     expect(s.byEngine).toEqual([
-      { mode: 'C++ Wasm', runs: 6, avgReplanMs: 8 },
+      { mode: 'C++ Wasm', runs: 6, avgReplanMs: 7.5 },
       { mode: 'TS Fallback', runs: 4, avgReplanMs: 2.5 },
     ]);
   });
