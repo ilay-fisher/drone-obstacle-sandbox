@@ -10,6 +10,9 @@ const DY = [0, 0, 1, -1, 1, -1, 1, -1];
  * supports decrease/increase-key, so capacity is exactly the cell count and nothing is
  * allocated after construction (CONTRIBUTING: no allocation in hot loops).
  */
+/** Slack for the D* Lite stop test (see runDStar). */
+const KEY_EPS = 1e-9;
+
 class IndexedHeap {
   size = 0;
   private readonly heap: Int32Array;
@@ -340,7 +343,10 @@ class TsPlanner implements Planner {
       const b = q.k2[u];
       const m = Math.min(this.dg[s], this.rhs[s]);
       const sk1 = m + this.km; // h(start,start) = 0
-      if (!(a < sk1 || (a === sk1 && b < m)) && this.dg[s] === this.rhs[s]) break;
+      // Stop test with slack: costs are sums of sqrt(2) terms while h is a closed form, so
+      // equal keys can differ by a few ulps. The queue stays exactly ordered; only this test
+      // is relaxed, so a vertex whose key ties the start key is expanded instead of skipped.
+      if (!(a < sk1 + KEY_EPS) && this.dg[s] === this.rhs[s]) break;
       const mu = Math.min(this.dg[u], this.rhs[u]);
       const nk1 = mu + this.h(this.sx, this.sy, u % w, (u / w) | 0) + this.km;
       if (a < nk1 || (a === nk1 && b < mu)) {

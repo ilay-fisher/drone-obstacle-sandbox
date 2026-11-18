@@ -21,17 +21,12 @@ constexpr double kDiag = 1.4142135623730951;  // sqrt(2)
 constexpr double kWindMultiplier = 4.0;
 constexpr uint8_t kWall = 1;
 constexpr uint8_t kWind = 2;
+/// Tolerance for the D* Lite stop test. Path costs are sums of sqrt(2) terms while the
+/// heuristic is a closed form, so two mathematically equal keys can differ by a few ulps.
+/// The queue itself is ordered with exact comparisons (it must stay a valid heap); only the
+/// stop test is relaxed: the loop keeps expanding while the queue minimum is below the
+/// start key plus this slack, so a vertex whose key ties the start key is never skipped.
 constexpr double kKeyEps = 1e-9;
-
-/// Lexicographic key comparison with a tolerance on the first component. Path costs are
-/// sums of sqrt(2) terms while the heuristic is a closed form, so two mathematically equal
-/// keys can differ by a few ulps. An exact compare would then end the D* Lite loop while a
-/// vertex on the active route is still stale. Near-ties fall through to the second key.
-inline bool keyLess(double a1, double a2, double b1, double b2) {
-  if (a1 < b1 - kKeyEps) return true;
-  if (a1 > b1 + kKeyEps) return false;
-  return a2 < b2 - kKeyEps;
-}
 
 struct Dir { int dx, dy; double cost; };
 /// Eight neighbours: four straight (cost 1) then four diagonal (cost sqrt 2).
@@ -355,15 +350,15 @@ void DronePlanner::dsInit(int start, int goal) {
 void DronePlanner::dsCompute() {
   while (!dHeap_.empty()) {
     int u = dHeap_.top();
-    double sk1, sk2;
+    double sk1, sk2;  // sk2 unused: ties are expanded regardless of the second key
     dsCalcKey(dsStart_, sk1, sk2);
     double ok1 = dHeap_.key1(u), ok2 = dHeap_.key2(u);
-    bool startKeyLarger = keyLess(ok1, ok2, sk1, sk2);
+    bool startKeyLarger = ok1 < sk1 + kKeyEps;
     if (!startKeyLarger && dRhs_[dsStart_] == dG_[dsStart_]) break;
 
     double nk1, nk2;
     dsCalcKey(u, nk1, nk2);
-    if (keyLess(ok1, ok2, nk1, nk2)) {
+    if (ok1 < nk1 || (ok1 == nk1 && ok2 < nk2)) {
       dHeap_.pushOrUpdate(u, nk1, nk2);  // key is stale because km grew: reinsert, no expansion
     } else if (dG_[u] > dRhs_[u]) {      // overconsistent: lock in the better value
       dG_[u] = dRhs_[u];
