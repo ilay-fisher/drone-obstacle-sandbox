@@ -94,8 +94,10 @@
 .card-btn:focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
 
 @media (max-width: 760px) {
-  .intro-pill { bottom: 14px; gap: var(--space-2); padding: 8px 12px; max-width: calc(100% - 24px); border-radius: var(--radius-control); }
-  .intro-caption { font-size: 13px; }
+  .intro-pill { bottom: 14px; gap: 8px; padding: 6px 12px 6px 10px; max-width: calc(100% - 20px); }
+  .intro-pips { gap: 3px; }
+  .intro-pips i { width: 5px; height: 5px; }
+  .intro-caption { font-size: 12px; line-height: 1.25; white-space: nowrap; }
   .intro-skip { display: none; }
   .intro-card { padding: var(--space-4); }
   .intro-card h2 { font-size: 19px; }
