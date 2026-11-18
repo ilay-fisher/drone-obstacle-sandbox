@@ -1,0 +1,97 @@
+/*
+ * Design tokens, "flight instrument". Never hard-code a colour, radius, shadow or easing
+ * that has a token here. One light source, top left: every bevel, highlight and shadow
+ * below agrees on it. The canvas reads its colours from these properties at mount.
+ */
+:root {
+  color-scheme: dark;
+
+  /* stage and surfaces: near-black, slightly blue, like an instrument panel in a dark studio */
+  --stage: #0c1014;
+  --ground: #10161c;
+  --surface: #131920;
+  --surface-raised: #1b232c;
+  --well: #0a0e12;
+  --line-soft: rgb(255 255 255 / 0.06);
+
+  /* anodised body: the gradient every raised object is cut from */
+  --body-hi: #28323d;
+  --body-lo: #10151b;
+  --body-gradient: linear-gradient(150deg, var(--body-hi), var(--body-lo));
+
+  /* text: warm paper on the cold stage */
+  --text: #ece8df;
+  --text-rgb: 236 232 223;
+  --text-dim: #a8b0bc;
+  --text-faint: #8a93a1;
+
+  /* accent family: signal orange. paint = live or pressable, hi = amber specular, deep = ember shade */
+  --paint: #ff5a1f;
+  --paint-hi: #ffb347;
+  --paint-deep: #a8300f;
+  --on-paint: #0c1014;
+  --paint-rgb: 255 90 31;
+  --paint-hi-rgb: 255 179 71;
+  --paint-deep-rgb: 168 48 15;
+
+  /* status colours, used for status only: green is Reached, red-ember is Blocked */
+  --pass: #7be0b0;
+  --blocked: #ff6b57;
+
+  /* map material, drawn by the canvas */
+  --wall: #2d3844;
+  --wall-rgb: 45 56 68;
+
+  /* type families (self-hosted, see fonts.css) */
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'Martian Mono', ui-monospace, Menlo, monospace;
+  --display-tracking: -0.026em;
+
+  /* spacing, 4 px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --gutter: 16px;
+
+  /* radii: nothing is a sharp rectangle */
+  --radius-chip: 10px;
+  --radius-control: 16px;
+  --radius-card: 24px;
+  --radius-stage: 36px;
+  --radius-pill: 999px;
+
+  /* light: one source, top left */
+  --bevel-inset:
+    inset 0 1px 0 rgb(255 255 255 / 0.11), inset 1px 0 0 rgb(255 255 255 / 0.05),
+    inset 0 -2px 3px rgb(0 0 0 / 0.35), inset 0 18px 26px -18px rgb(255 255 255 / 0.08);
+  --bevel-inset-sm: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 -1px 2px rgb(0 0 0 / 0.4);
+  /* the well: an engraved recess whose lower right lip catches the light */
+  --well-inset: inset 1px 2px 5px rgb(0 0 0 / 0.6), inset -1px -1px 0 rgb(255 255 255 / 0.05);
+  /* grounded contact shadows fall to the lower right, away from the light */
+  --shadow-contact-sm: 1px 2px 1px rgb(0 0 0 / 0.5), 3px 6px 8px -3px rgb(0 0 0 / 0.5);
+  --shadow-contact:
+    2px 3px 2px rgb(0 0 0 / 0.45), 6px 10px 14px -4px rgb(0 0 0 / 0.45),
+    16px 26px 40px -16px rgb(0 0 0 / 0.55);
+  --shadow-lift:
+    3px 5px 3px rgb(0 0 0 / 0.4), 10px 18px 22px -6px rgb(0 0 0 / 0.5),
+    24px 38px 56px -20px rgb(0 0 0 / 0.6);
+  /* accent rim light: a faint ember glow on the lower right edge of lit objects */
+  --rim-light: 10px 12px 36px -14px rgb(var(--paint-rgb) / 0.4);
+  /* focus ring: the amber specular, offset so it never reads as a frame */
+  --focus-ring: 2px solid var(--paint-hi);
+
+  /* motion: the two springs, generated from src/motion/spring.ts (a test keeps them in sync) */
+  --spring-soft: linear(0, 0.042, 0.146, 0.284, 0.434, 0.579, 0.711, 0.823, 0.912, 0.98, 1.027, 1.056, 1.072, 1.077, 1.074, 1.066, 1.056, 1.044, 1.033, 1.023, 1.014, 1.007, 1.002, 0.998, 0.996, 0.995, 0.994, 1);
+  --spring-soft-dur: 880ms;
+  --spring-snappy: linear(0, 0.039, 0.135, 0.264, 0.404, 0.543, 0.67, 0.779, 0.87, 0.94, 0.992, 1.028, 1.05, 1.061, 1.064, 1.062, 1.055, 1.047, 1.038, 1.029, 1.021, 1.014, 1.008, 1.004, 1, 0.998, 0.997, 1);
+  --spring-snappy-dur: 350ms;
+  --dur-fast: 120ms;
+}
+
+@media (min-width: 600px) {
+  :root { --gutter: 24px; }
+}

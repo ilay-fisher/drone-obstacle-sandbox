@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Simulation } from '../engine/simulation';
+import { installPerfProbe } from '../perf/perfProbe';
+import { clampDt, effectiveDpr, shouldRun, type LoopVisibility } from '../render/loopControl';
+import { readPalette, type Palette } from '../render/palette';
 import type { Brush } from './ControlPanel';
 
 interface Props {
@@ -9,27 +12,22 @@ interface Props {
   showLidar: boolean;
 }
 
-interface Hover { x: number; y: number; left: number; top: number }
+interface Hover { x: number; y: number; left: number; top: number; flip: boolean }
 
-const COL = {
-  bg: '#0b1020', grid: 'rgba(148,163,184,0.10)', wall: '#334155', wallEdge: '#475569',
-  path: 'rgba(52,211,153,0.9)', drone: '#f8fafc', target: '#34d399', patrol: '#fb7185',
-  lidarFill: 'rgba(34,211,238,0.06)', lidarSweep: 'rgba(34,211,238,0.20)', lidarEdge: 'rgba(34,211,238,0.55)',
-};
-/** Heat colours are precomputed once; the render loop never builds style strings. */
-const HEAT_STYLES: string[] = Array.from({ length: 256 }, (_, i) =>
-  `rgba(168,85,247,${(0.12 + 0.5 * Math.min(1, i / 6)).toFixed(3)})`);
 const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 
-/** Builds the hatched amber tile once; reused as a canvas pattern for every wind cell. */
-function makeWindPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+/** The frame-time probe; null (and free) unless the URL has `?perf=1`. */
+const probe = installPerfProbe();
+
+/** Builds the hatched wind tile once; reused as a canvas pattern for every wind cell. */
+function makeWindPattern(ctx: CanvasRenderingContext2D, pal: Palette): CanvasPattern | null {
   const t = document.createElement('canvas');
   t.width = t.height = 8;
   const g = t.getContext('2d');
   if (!g) return null;
-  g.fillStyle = 'rgba(245,158,11,0.16)';
+  g.fillStyle = pal.windFill;
   g.fillRect(0, 0, 8, 8);
-  g.strokeStyle = 'rgba(245,158,11,0.85)';
+  g.strokeStyle = pal.windStroke;
   g.lineWidth = 1.5;
   g.beginPath();
   g.moveTo(-2, 10); g.lineTo(10, -2);
@@ -39,57 +37,88 @@ function makeWindPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   return ctx.createPattern(t, 'repeat');
 }
 
+/**
+ * Renders the static ground (fill plus one faint dot per cell centre) into its own canvas.
+ * It only changes on resize, so each frame is a single drawImage instead of 1440 arcs.
+ */
+function makeGroundLayer(w: number, h: number, cell: number, dpr: number, pal: Palette): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * cell * dpr);
+  c.height = Math.round(h * cell * dpr);
+  const g = c.getContext('2d');
+  if (!g) return c;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = pal.ground;
+  g.fillRect(0, 0, w * cell, h * cell);
+  g.fillStyle = pal.dot;
+  const r = Math.max(0.9, cell * 0.05);
+  g.beginPath();
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const cx = (x + 0.5) * cell;
+      const cy = (y + 0.5) * cell;
+      g.moveTo(cx + r, cy);
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+    }
+  }
+  g.fill();
+  return c;
+}
+
 interface DrawOpts { showHeat: boolean; showLidar: boolean }
 
-/** Draws one frame. Pure function of the simulation state; allocates nothing per call. */
-function draw(ctx: CanvasRenderingContext2D, sim: Simulation, cell: number, o: DrawOpts, wind: CanvasPattern | null, now: number): void {
-  const { width: w, height: h } = sim;
-  const grid = sim.planner.grid();
-  ctx.fillStyle = COL.bg;
-  ctx.fillRect(0, 0, w * cell, h * cell);
+/** Everything `draw` needs that changes only on resize or mount. */
+interface View {
+  cell: number;
+  dpr: number;
+  pal: Palette;
+  wind: CanvasPattern | null;
+  ground: HTMLCanvasElement | null;
+}
 
-  ctx.strokeStyle = COL.grid;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = 0; x <= w; x++) { ctx.moveTo(x * cell + 0.5, 0); ctx.lineTo(x * cell + 0.5, h * cell); }
-  for (let y = 0; y <= h; y++) { ctx.moveTo(0, y * cell + 0.5); ctx.lineTo(w * cell, y * cell + 0.5); }
-  ctx.stroke();
+/** Draws one frame. Pure function of the simulation state; allocates nothing per call. */
+function draw(ctx: CanvasRenderingContext2D, sim: Simulation, v: View, o: DrawOpts, now: number): void {
+  const { width: w, height: h } = sim;
+  const { cell, dpr, pal } = v;
+  const grid = sim.planner.grid();
+  // Cell edges snap to device pixels so adjacent walls and heat cells never show a seam.
+  const snap = (c: number) => Math.round(c * cell * dpr) / dpr;
+
+  if (v.ground) ctx.drawImage(v.ground, 0, 0, w * cell, h * cell);
+  else { ctx.fillStyle = pal.ground; ctx.fillRect(0, 0, w * cell, h * cell); }
 
   if (o.showHeat) {
     const heat = sim.planner.heat();
     for (let i = 0; i < heat.length; i++) {
       if (heat[i] === 0) continue;
-      ctx.fillStyle = HEAT_STYLES[heat[i]];
-      ctx.fillRect((i % w) * cell, ((i / w) | 0) * cell, cell, cell);
+      const cx = i % w;
+      const cy = (i / w) | 0;
+      ctx.fillStyle = pal.heat[heat[i]];
+      ctx.fillRect(snap(cx), snap(cy), snap(cx + 1) - snap(cx), snap(cy + 1) - snap(cy));
     }
   }
 
   for (let i = 0; i < grid.length; i++) {
-    const v = grid[i];
-    if (v === 0) continue;
-    const x = (i % w) * cell;
-    const y = ((i / w) | 0) * cell;
-    if (v === 1) {
-      ctx.fillStyle = COL.wall;
-      ctx.fillRect(x + 1, y + 1, cell - 1, cell - 1);
-    } else if (wind) {
-      ctx.fillStyle = wind;
-      ctx.fillRect(x + 1, y + 1, cell - 1, cell - 1);
-    }
+    const val = grid[i];
+    if (val === 0) continue;
+    const cx = i % w;
+    const cy = (i / w) | 0;
+    ctx.fillStyle = val === 1 ? pal.wall : (v.wind ?? pal.windFill);
+    ctx.fillRect(snap(cx), snap(cy), snap(cx + 1) - snap(cx), snap(cy + 1) - snap(cy));
   }
 
   // Patrols cover their stamped wall cell with a distinct marker and a heading tick.
   for (let i = 0; i < sim.patrolCount; i++) {
     const cx = (sim.patrolX[i] + 0.5) * cell;
     const cy = (sim.patrolY[i] + 0.5) * cell;
-    ctx.fillStyle = COL.bg;
-    ctx.fillRect(cx - cell / 2 + 1, cy - cell / 2 + 1, cell - 1, cell - 1);
-    ctx.fillStyle = COL.patrol;
+    ctx.fillStyle = pal.ground;
+    ctx.fillRect(cx - cell / 2, cy - cell / 2, cell, cell);
+    ctx.fillStyle = pal.patrol;
     ctx.beginPath();
     ctx.arc(cx, cy, cell * 0.38, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = COL.bg;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = pal.ground;
+    ctx.lineWidth = Math.max(2, cell * 0.12);
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + sim.patrolDX[i] * cell * 0.38, cy + sim.patrolDY[i] * cell * 0.38);
@@ -100,9 +129,11 @@ function draw(ctx: CanvasRenderingContext2D, sim: Simulation, cell: number, o: D
   const dy = sim.droneY * cell;
 
   if (sim.pathLen > 1) {
-    ctx.strokeStyle = COL.path;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = pal.route;
+    ctx.lineWidth = Math.max(2, cell * 0.12);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([cell * 0.4, cell * 0.3]);
     ctx.beginPath();
     ctx.moveTo(dx, dy);
     for (let i = sim.pathIdx + 1; i < sim.pathLen; i++) {
@@ -111,19 +142,20 @@ function draw(ctx: CanvasRenderingContext2D, sim: Simulation, cell: number, o: D
     }
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.lineCap = 'butt';
   }
 
   if (o.showLidar) {
     const r = sim.lidarRadius * cell;
     const a = (now / 1000) * 2.4;
-    ctx.fillStyle = COL.lidarFill;
-    ctx.strokeStyle = COL.lidarEdge;
-    ctx.lineWidth = 1;
+    ctx.fillStyle = pal.lidarFill;
     ctx.beginPath();
     ctx.arc(dx, dy, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = pal.lidarEdge;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.fillStyle = COL.lidarSweep;
+    ctx.fillStyle = pal.lidarSweep;
     ctx.beginPath();
     ctx.moveTo(dx, dy);
     ctx.arc(dx, dy, r, a - 0.7, a);
@@ -133,8 +165,8 @@ function draw(ctx: CanvasRenderingContext2D, sim: Simulation, cell: number, o: D
 
   const tx = (sim.goalX + 0.5) * cell;
   const ty = (sim.goalY + 0.5) * cell;
-  ctx.strokeStyle = COL.target;
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = pal.goal;
+  ctx.lineWidth = Math.max(2, cell * 0.1);
   ctx.beginPath();
   ctx.arc(tx, ty, cell * 0.42, 0, Math.PI * 2);
   ctx.moveTo(tx + cell * 0.2, ty);
@@ -144,7 +176,7 @@ function draw(ctx: CanvasRenderingContext2D, sim: Simulation, cell: number, o: D
   ctx.save();
   ctx.translate(dx, dy);
   ctx.rotate(sim.heading);
-  ctx.fillStyle = COL.drone;
+  ctx.fillStyle = pal.drone;
   ctx.beginPath();
   ctx.moveTo(cell * 0.5, 0);
   ctx.lineTo(-cell * 0.4, cell * 0.36);
@@ -152,12 +184,18 @@ function draw(ctx: CanvasRenderingContext2D, sim: Simulation, cell: number, o: D
   ctx.lineTo(-cell * 0.4, -cell * 0.36);
   ctx.closePath();
   ctx.fill();
+  ctx.fillStyle = pal.nav;
+  ctx.beginPath();
+  ctx.arc(cell * 0.16, 0, cell * 0.09, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
 /**
  * Canvas view of the simulation. One requestAnimationFrame loop advances the simulation
  * and draws; React state is only used for the hover tooltip, never inside the loop.
+ * The loop stops while the canvas is off screen or the tab is hidden and resumes without
+ * a time jump. The canvas fills its box, which keeps the map's aspect ratio (see CSS).
  */
 export function DroneCanvas({ sim, brush, showHeat, showLidar }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -173,35 +211,71 @@ export function DroneCanvas({ sim, brush, showHeat, showLidar }: Props) {
     const wrap = wrapRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !wrap || !ctx) return;
-    const wind = makeWindPattern(ctx);
+    const pal = readPalette();
+    const view: View = { cell: 16, dpr: 1, pal, wind: makeWindPattern(ctx, pal), ground: null };
     const resize = () => {
-      const cell = Math.max(8, Math.floor(Math.min(wrap.clientWidth / sim.width, wrap.clientHeight / sim.height)));
-      const dpr = window.devicePixelRatio || 1;
+      const width = wrap.clientWidth;
+      if (width <= 0) return;
+      const dpr = effectiveDpr(window.devicePixelRatio);
+      const cell = width / sim.width;
+      view.cell = cell;
+      view.dpr = dpr;
       cellRef.current = cell;
-      canvas.style.width = `${cell * sim.width}px`;
-      canvas.style.height = `${cell * sim.height}px`;
-      canvas.width = cell * sim.width * dpr;
-      canvas.height = cell * sim.height * dpr;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(cell * sim.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      view.ground = makeGroundLayer(sim.width, sim.height, cell, dpr, pal);
     };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
+
+    const vis: LoopVisibility = { onScreen: true, tabVisible: document.visibilityState !== 'hidden' };
     let raf = 0;
     let last = performance.now();
     const frame = (now: number) => {
-      sim.tick(Math.min(0.05, (now - last) / 1000));
-      last = now;
-      draw(ctx, sim, cellRef.current, opts.current, wind, now);
       raf = requestAnimationFrame(frame);
+      const t0 = probe ? performance.now() : 0;
+      sim.tick(clampDt(last, now));
+      draw(ctx, sim, view, opts.current, now);
+      if (probe) probe.record(now - last, performance.now() - t0);
+      last = now;
     };
-    raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    /** Starts or stops the loop to match visibility; on start the clock is rebased so no time is skipped. */
+    const sync = () => {
+      if (shouldRun(vis)) {
+        if (raf) return;
+        last = performance.now();
+        probe?.resume();
+        raf = requestAnimationFrame(frame);
+      } else if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    };
+    const onVisibility = () => { vis.tabVisible = document.visibilityState !== 'hidden'; sync(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    const io = typeof IntersectionObserver === 'function'
+      ? new IntersectionObserver((entries) => {
+          vis.onScreen = entries[entries.length - 1].isIntersecting;
+          sync();
+        })
+      : null;
+    io?.observe(wrap);
+    sync();
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      ro.disconnect();
+      io?.disconnect();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [sim]);
 
   const cellAt = (e: React.PointerEvent): { x: number; y: number } => {
     const r = canvasRef.current!.getBoundingClientRect();
-    return { x: Math.floor((e.clientX - r.left) / cellRef.current), y: Math.floor((e.clientY - r.top) / cellRef.current) };
+    const cell = r.width / sim.width;
+    return { x: Math.floor((e.clientX - r.left) / cell), y: Math.floor((e.clientY - r.top) / cell) };
   };
 
   const paint = (x: number, y: number, first: boolean) => {
@@ -230,7 +304,10 @@ export function DroneCanvas({ sim, brush, showHeat, showLidar }: Props) {
     const { x, y } = cellAt(e);
     const inside = x >= 0 && y >= 0 && x < sim.width && y < sim.height;
     if (!inside) { setHover(null); return; }
-    setHover((p) => (p && p.x === x && p.y === y ? p : { x, y, left: (x + 1) * cellRef.current + 8, top: y * cellRef.current }));
+    // Near the right edge the tooltip flips to the left of the cell so it never widens the page.
+    const flip = x > sim.width * 0.6;
+    const left = flip ? x * cellRef.current - 8 : (x + 1) * cellRef.current + 8;
+    setHover((p) => (p && p.x === x && p.y === y ? p : { x, y, left, top: y * cellRef.current, flip }));
     const d = drag.current;
     if (!d.down || (x === d.lx && y === d.ly)) return;
     // Interpolate between samples so fast drags leave no gaps.
@@ -243,22 +320,20 @@ export function DroneCanvas({ sim, brush, showHeat, showLidar }: Props) {
   const costText = cellCost === 1 ? 'wall (impassable)' : cellCost === 2 ? 'cost 4.0 (wind)' : 'cost 1.0';
 
   return (
-    <div className="canvas-wrap" ref={wrapRef}>
-      <div className="canvas-box">
-        <canvas
-          ref={canvasRef}
-          className="sim-canvas"
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={() => { drag.current.down = false; }}
-          onPointerLeave={() => { drag.current.down = false; setHover(null); }}
-        />
-        {hover && (
-          <div className="tooltip" style={{ left: hover.left, top: hover.top }}>
-            ({hover.x}, {hover.y}) &middot; {costText}
-          </div>
-        )}
-      </div>
+    <div className="canvas-box" ref={wrapRef} style={{ aspectRatio: `${sim.width} / ${sim.height}` }}>
+      <canvas
+        ref={canvasRef}
+        className="sim-canvas"
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={() => { drag.current.down = false; }}
+        onPointerLeave={() => { drag.current.down = false; setHover(null); }}
+      />
+      {hover && (
+        <div className="tooltip" style={{ left: hover.left, top: hover.top, transform: hover.flip ? 'translateX(-100%)' : undefined }}>
+          ({hover.x}, {hover.y}) &middot; {costText}
+        </div>
+      )}
     </div>
   );
 }
