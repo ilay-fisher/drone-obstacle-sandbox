@@ -1,0 +1,40 @@
+/*
+ * Self-hosted fonts (latin subset, OFL; see assets/fonts/LICENSE). The url() paths are
+ * resolved by Vite, so they respect VITE_BASE on GitHub Pages. font-display: swap keeps
+ * text visible while the files load.
+ */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('../assets/fonts/bricolage-grotesque-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('../assets/fonts/instrument-sans-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url('../assets/fonts/instrument-sans-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Martian Mono';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('../assets/fonts/martian-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Martian Mono';
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url('../assets/fonts/martian-mono-latin-500-normal.woff2') format('woff2');
+}
