@@ -83,6 +83,14 @@ export class Simulation {
   readonly patrolDY = new Int32Array(MAX_PATROLS);
   private readonly patrolUnder = new Uint8Array(MAX_PATROLS);
   patrolCount = 0;
+  /**
+   * Counter that increases whenever the cells a viewer would see change (walls, wind, a
+   * patrol's underlying cell, a cleared or imported map). Patrol movement does not bump it:
+   * patrols are stamped into the planner grid but `copyVisualGrid` hides the stamp. The
+   * renderer compares it once per frame to decide whether its cached layers are stale, so
+   * edits that bypass `Simulation` (calling `planner.setCell` directly) are not detected.
+   */
+  gridVersion = 0;
 
   private frac = 0;
   private base: MissionStatus = 'Idle';
@@ -148,6 +156,7 @@ export class Simulation {
   clearMap(): void {
     this.patrolCount = 0;
     this.planner.clearGrid();
+    this.gridVersion++;
     this.reset();
   }
 
@@ -156,11 +165,11 @@ export class Simulation {
     if (x < 0 || y < 0 || x >= this.width || y >= this.height) return;
     const pi = this.patrolAt(x, y);
     if (pi >= 0) {
-      if (v !== 1 && this.patrolUnder[pi] !== v) { this.patrolUnder[pi] = v; this.needsReplan = true; }
+      if (v !== 1 && this.patrolUnder[pi] !== v) { this.patrolUnder[pi] = v; this.needsReplan = true; this.gridVersion++; }
       return;
     }
     if (v === 1 && (this.isEndpoint(x, y) || (x === Math.floor(this.droneX) && y === Math.floor(this.droneY)))) return;
-    if (this.planner.getCell(x, y) !== v) { this.planner.setCell(x, y, v); this.needsReplan = true; }
+    if (this.planner.getCell(x, y) !== v) { this.planner.setCell(x, y, v); this.needsReplan = true; this.gridVersion++; }
   }
 
   /** Clears a cell and removes any patrol standing on it. */
@@ -196,6 +205,16 @@ export class Simulation {
     return true;
   }
 
+  /**
+   * Copies the planner grid into `out` (length width * height) with every patrol's stamped
+   * wall replaced by the value underneath it: the map as a viewer sees it, patrols aside.
+   * Allocation-free.
+   */
+  copyVisualGrid(out: Uint8Array): void {
+    out.set(this.planner.grid());
+    for (let i = 0; i < this.patrolCount; i++) out[this.patrolY[i] * this.width + this.patrolX[i]] = this.patrolUnder[i];
+  }
+
   /** Snapshot with patrol cells restored, suitable for saving. */
   exportState(): SimState {
     const cells = this.planner.grid().slice();
@@ -217,6 +236,7 @@ export class Simulation {
     }
     this.setEndpoints(s.start.x, s.start.y, s.goal.x, s.goal.y);
     for (const p of s.patrols) this.addPatrol(p.x, p.y, p.dx, p.dy);
+    this.gridVersion++;
     this.reset();
     return true;
   }
