@@ -50,7 +50,7 @@ export function installPerfProbe(): PerfProbe | null {
   el.setAttribute('role', 'status');
   el.style.cssText =
     'position:fixed;left:12px;bottom:12px;z-index:1000;padding:6px 12px;border-radius:999px;' +
-    'background:rgba(12,16,20,0.88);color:#ece8df;font:500 11px/1.4 "Martian Mono",ui-monospace,monospace;' +
+    'background:rgba(12,16,20,0.88);color:#ece8df;font:500 10px/1.4 "Martian Mono",ui-monospace,monospace;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;' +
     'pointer-events:none;box-shadow:2px 4px 12px rgba(0,0,0,0.5)';
   document.body.appendChild(el);
   setInterval(() => {
