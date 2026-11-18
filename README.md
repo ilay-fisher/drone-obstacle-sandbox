@@ -82,6 +82,7 @@ cd web && npm test
   (two values per cell plus a key-ordered queue) and more complex code; a new goal resets it.
 - Both use an 8-connected grid, octile heuristic, no corner cutting, and a 4x cost for wind
   zones, so the drone trades a longer route for a cheaper one when that pays off.
+- The replan animation's flood order is reconstructed by BFS in JS (over the visited heat cells, from the drone or goal), because the engine exposes expansion counts, not expansion order.
 
 ## Repository layout
 

@@ -84,9 +84,11 @@ describe('ReplanEvent', () => {
 
   it('a D* repair touches far fewer cells than the A* search it replaces', () => {
     const sim = make(40, 21, 0, 10, 39, 10);
+    for (let y = 0; y <= 16; y++) sim.planner.setCell(20, y, 1);
+    sim.reset();
     sim.setMode('dstar');
     sim.tick(0.016);
-    sim.editCell(20, 10, 1);
+    sim.editCell(25, 13, 1);
     sim.tick(0.016);
     const repaired = sim.lastReplan!.heat.reduce((n, v) => n + (v > 0 ? 1 : 0), 0);
     sim.setMode('astar');
@@ -100,11 +102,11 @@ describe('ReplanEvent', () => {
     const sim = make();
     sim.setMode('dstar');
     sim.tick(0.016);
-    sim.setMode('dstar');
-    sim.clearMap();
-    sim.setMode('astar');
-    sim.setMode('dstar');
+    sim.editCell(12, 5, 1);
     sim.tick(0.016);
+    expect(sim.lastReplan!.incremental).toBe(true);
+    sim.clearMap();
+    expect(sim.lastReplan!.mode).toBe('dstar');
     expect(sim.lastReplan!.incremental).toBe(false);
   });
 

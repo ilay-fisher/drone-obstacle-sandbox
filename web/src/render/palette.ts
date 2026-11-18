@@ -24,6 +24,8 @@ export interface Palette {
   windFill: string;
   windStroke: string;
   stage: string;
+  /** Ember shade of the accent (`--paint-deep`): the D* Lite repair light at rest. */
+  ember: string;
 }
 
 /** Builds an `rgba()` string from a space or comma separated `r g b` triplet. */
@@ -42,6 +44,7 @@ const FALLBACK: Record<string, string> = {
   '--paint': '#ff5a1f',
   '--paint-rgb': '255 90 31',
   '--paint-hi': '#ffb347',
+  '--paint-deep': '#a8300f',
   '--paint-hi-rgb': '255 179 71',
   '--blocked': '#ff6b57',
   '--pass': '#7be0b0',
@@ -61,6 +64,7 @@ export function buildPalette(get: (name: string) => string): Palette {
     ground: t('--ground'),
     wall: t('--wall'),
     stage: t('--stage'),
+    ember: t('--paint-deep'),
     dot: rgba(text, 0.1),
     heat: Array.from({ length: 256 }, (_, i) => rgba(text, Number((0.05 + 0.13 * Math.min(1, i / 6)).toFixed(3)))),
     route: t('--paint'),

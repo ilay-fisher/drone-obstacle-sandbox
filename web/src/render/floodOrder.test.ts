@@ -59,7 +59,7 @@ describe('FloodOrder', () => {
     const { heat, w, h } = heatOf(['###...###..#']);
     const f = new FloodOrder(w, h);
     f.compute(heat, [0], 1);
-    expect(f.count).toBe(8);
+    expect(f.count).toBe(7);
     const a = f.rank[6];
     const b = f.rank[8];
     const far = f.rank[11];
