@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTsPlanner } from './tsPlanner';
+import { buildPreset } from '../scenarios/presets';
 import type { PlanMode, Planner } from './plannerBridge';
 
 const SQ2 = Math.SQRT2;
@@ -203,5 +204,82 @@ describe('tsPlanner hasPathObstruction', () => {
     expect(p.hasPathObstruction(10, 0, 5, 1)).toBe(false);
     p.setCell(10, 1, 0);
     expect(p.hasPathObstruction(10, 0, 5, 1)).toBe(true);
+  });
+});
+
+describe('D* Lite regression: false "no path" after start jump and wall drag', () => {
+  /** Replays the call pattern of the simulation on the Urban Canyon preset. */
+  it('matches A* on the Urban Canyon drag replay', () => {
+    const w = 48;
+    const h = 30;
+    const cells = buildPreset('Urban Canyon', w, h).cells;
+    const d = open(w, h);
+    const ref = open(w, h);
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i] !== 0) {
+        d.setCell(i % w, (i / w) | 0, cells[i] as 1 | 2);
+        ref.setCell(i % w, (i / w) | 0, cells[i] as 1 | 2);
+      }
+    }
+    d.computePath(2, 15, 45, 15, 'astar');
+    d.computePath(2, 15, 45, 15, 'dstar');
+    for (let y = 11; y <= 18; y++) {
+      d.setCell(38, y, 1);
+      ref.setCell(38, y, 1);
+      for (let rep = 0; rep < 2; rep++) {
+        const a = d.computePath(18, 16, 45, 15, 'dstar');
+        const b = ref.computePath(18, 16, 45, 15, 'astar');
+        expect(a.found).toBe(b.found);
+        expect(a.cost).toBeCloseTo(b.cost, 6);
+      }
+    }
+  });
+
+  it('matches fresh A* after every call in a random edit and start-jump sequence', () => {
+    const rnd = mulberry32(99);
+    const W = 24;
+    const H = 16;
+    for (let m = 0; m < 40; m++) {
+      const d = open(W, H);
+      const ref = open(W, H);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const r = rnd();
+          const v = r < 0.22 ? 1 : r < 0.3 ? 2 : 0;
+          d.setCell(x, y, v);
+          ref.setCell(x, y, v);
+        }
+      }
+      let sx = 0;
+      let sy = 0;
+      const gx = W - 1;
+      const gy = H - 1;
+      d.setCell(sx, sy, 0); ref.setCell(sx, sy, 0);
+      d.setCell(gx, gy, 0); ref.setCell(gx, gy, 0);
+      for (let round = 0; round < 40; round++) {
+        const edits = Math.floor(rnd() * 12);
+        for (let e = 0; e < edits; e++) {
+          const x = Math.floor(rnd() * W);
+          const y = Math.floor(rnd() * H);
+          const v = Math.floor(rnd() * 3) as 0 | 1 | 2;
+          if ((x === sx && y === sy) || (x === gx && y === gy)) continue;
+          const old = d.getCell(x, y);
+          const kind = Math.floor(rnd() * 3);
+          const reps = kind === 0 ? 1 + Math.floor(rnd() * 5) : 1;
+          for (let r = 0; r < reps; r++) { d.setCell(x, y, v); ref.setCell(x, y, v); }
+          if (kind === 1) { d.setCell(x, y, old); ref.setCell(x, y, old); }
+        }
+        const a = d.computePath(sx, sy, gx, gy, 'dstar');
+        const b = ref.computePath(sx, sy, gx, gy, 'astar');
+        expect(a.found).toBe(b.found);
+        if (a.found) {
+          expect(a.cost).toBeCloseTo(b.cost, 6);
+          const k = Math.min(a.path.length - 1, 1 + Math.floor(rnd() * 6));
+          const c = a.path[k];
+          sx = c % W;
+          sy = (c / W) | 0;
+        }
+      }
+    }
   });
 });
