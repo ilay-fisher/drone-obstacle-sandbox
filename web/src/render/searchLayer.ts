@@ -130,6 +130,14 @@ class SearchShow {
     if (this.ev) this.placeChip(v);
   }
 
+  /** Swallows pending events without playing them and clears the picture; the next new event plays normally. */
+  mute(sim: Simulation): void {
+    this.seq = sim.replanSeq;
+    this.ev = null;
+    this.chip = null;
+    this.phases = FINISHED;
+  }
+
   /** Starts playing a new event when the simulation has produced one since the last frame. */
   sync(sim: Simulation, v: RenderView, now: number): void {
     if (now === this.lastNow && sim.replanSeq === this.seq) return;
@@ -440,6 +448,7 @@ function showFor(sim: Simulation): SearchShow {
 /** The flood: resting glow and the bright front. Honours the heat toggle. */
 export function drawSearchUnder(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, o: DrawOpts, now: number): void {
   const show = showFor(sim);
+  if (o.quiet) { show.mute(sim); return; }
   show.sync(sim, v, now);
   if (!o.showHeat) return;
   show.drawGlow(ctx, v);
@@ -448,6 +457,7 @@ export function drawSearchUnder(ctx: CanvasRenderingContext2D, sim: Simulation, 
 /** The route (dissolving old one, then the new one drawing on) and the chip. */
 export function drawSearchOver(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView, o: DrawOpts, now: number): void {
   const show = showFor(sim);
+  if (o.quiet) return;
   show.sync(sim, v, now);
   show.drawDissolve(ctx, v);
   show.drawRoute(ctx, sim, v);

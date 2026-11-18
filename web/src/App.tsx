@@ -13,6 +13,11 @@ import type { ShortcutAction } from './input/keymap';
 import { Simulation, type SimStats } from './engine/simulation';
 import { log } from './logger';
 import { isDemoMode } from './demoMode';
+import { IntroCard } from './components/intro/IntroCard';
+import { IntroPill, IntroShield } from './components/intro/IntroOverlay';
+import { useIntro } from './components/intro/useIntro';
+import { decideIntro, defaultStorage, hasSeenIntro } from './intro/introStorage';
+import { prefersReducedMotion } from './motion/spring';
 import { buildPreset, type PresetName } from './scenarios/presets';
 
 const GRID_W = 48;
@@ -32,6 +37,16 @@ export function App() {
   const [apiOnline, setApiOnline] = useState(false);
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const scenarioId = useRef<string | null>(null);
+  // Decided once, at load: a first visit (or ?intro=1) plays the intro; ?intro=0 never does.
+  const [introDecision] = useState(() => decideIntro({
+    search: typeof location === 'undefined' ? '' : location.search,
+    seen: hasSeenIntro(defaultStorage()),
+    reducedMotion: prefersReducedMotion(),
+  }));
+  const animatedIntro = introDecision.show && introDecision.mode === 'animated';
+  /** True while the intro paints the city: the renderer plays no search events. Starts true so the first frame is not the old map. */
+  const quietRef = useRef(animatedIntro);
+  const speedRef = useRef(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +57,7 @@ export function App() {
         postRun({ ...summary, scenarioId: scenarioId.current, engineMode: planner.mode })
           .catch((e) => log.warn('run not recorded', e instanceof ApiError ? e.message : e));
       });
-      s.importState(buildPreset('Dynamic Patrols', GRID_W, GRID_H));
+      s.importState(buildPreset(animatedIntro ? 'Empty Arena' : introDecision.show ? 'Urban Canyon' : 'Dynamic Patrols', GRID_W, GRID_H));
       setStats({ ...s.stats });
       setSim(s);
     });
@@ -95,6 +110,14 @@ export function App() {
   const onShortcut = useRef<(a: ShortcutAction) => void>(() => {});
   useShortcuts((a) => onShortcut.current(a));
 
+  speedRef.current = speed;
+  const intro = useIntro({
+    sim, gridW: GRID_W, gridH: GRID_H, auto: introDecision.show ? introDecision.mode : null,
+    setMode, setPlaying, quietRef,
+    restoreSpeed: () => { if (sim) sim.speed = speedRef.current; },
+  });
+  const replayIntro = () => intro.replay(prefersReducedMotion() ? 'card' : 'animated');
+
   const refreshScenarios = useCallback(() => {
     listScenarios().then(setScenarios).catch(() => setApiOnline(false));
   }, []);
@@ -111,6 +134,7 @@ export function App() {
   };
 
   onShortcut.current = (a) => {
+    if (intro.ui.status === 'running' || intro.ui.status === 'card') return; // the intro owns the keyboard (Esc skips)
     switch (a.type) {
       case 'togglePlay': togglePlay(); break;
       case 'reset': stop(); sim.reset(); break;
@@ -118,6 +142,7 @@ export function App() {
       case 'toggleHeat': setShowHeat((v) => !v); break;
       case 'toggleLidar': setShowLidar((v) => !v); break;
       case 'brush': setBrush(a.brush); break;
+      case 'replayIntro': replayIntro(); break;
       case 'speed': setSpeed((v) => stepValue(v, SPEED_RANGE, a.dir)); break;
     }
   };
@@ -155,7 +180,7 @@ export function App() {
   };
 
   return (
-    <div className="app">
+    <div className="app" data-intro={intro.ui.status === 'idle' ? undefined : intro.ui.status}>
       <header>
         <h1>Drone Obstacle Sandbox</h1>
         <span>Real-time A* and D* Lite replanning with LiDAR</span>
@@ -163,7 +188,9 @@ export function App() {
       <main>
         <div className="left">
           <div className="deck">
-            <section className="stage"><DroneCanvas sim={sim} brush={brush} showHeat={showHeat} showLidar={showLidar} /></section>
+            <section className="stage"><DroneCanvas sim={sim} brush={brush} showHeat={showHeat} showLidar={showLidar} quietRef={quietRef} />
+              <IntroPill ui={intro.ui} />
+            </section>
             <TelemetryHud engine={sim.planner.mode} stats={stats} apiOnline={apiOnline} demo={isDemoMode()} />
           </div>
         </div>
@@ -182,9 +209,12 @@ export function App() {
             apiOnline={apiOnline} demo={isDemoMode()} scenarios={scenarios}
             onRefreshScenarios={refreshScenarios}
             onSave={onSave} onLoad={onLoad} onDelete={onDelete}
+            onReplayIntro={replayIntro}
           />
         </aside>
       </main>
+      <IntroShield active={intro.ui.status === 'running'} onSkip={intro.skip} />
+      {intro.ui.status === 'card' && <IntroCard onDismiss={intro.skip} />}
     </div>
   );
 }

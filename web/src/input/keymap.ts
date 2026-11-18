@@ -16,7 +16,8 @@ export type ShortcutAction =
   | { type: 'toggleHeat' }
   | { type: 'toggleLidar' }
   | { type: 'brush'; brush: Brush }
-  | { type: 'speed'; dir: 1 | -1 };
+  | { type: 'speed'; dir: 1 | -1 }
+  | { type: 'replayIntro' };
 
 /** The subset of KeyboardEvent the map needs. */
 export interface KeyEventLike {
@@ -50,6 +51,7 @@ const BY_KEY: Record<string, ShortcutAction> = {
   e: { type: 'brush', brush: 'erase' },
   '[': { type: 'speed', dir: -1 },
   ']': { type: 'speed', dir: 1 },
+  '?': { type: 'replayIntro' },
 };
 
 /** Maps a key event to an action, or null. Modified keys are left to the browser. */
@@ -99,4 +101,5 @@ export const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: ']', label: 'Faster' },
   { keys: 'H', label: 'Toggle heatmap' },
   { keys: 'L', label: 'Toggle LiDAR' },
+  { keys: '?', label: 'Replay the intro' },
 ];

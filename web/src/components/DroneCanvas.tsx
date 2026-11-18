@@ -12,6 +12,8 @@ interface Props {
   brush: Brush;
   showHeat: boolean;
   showLidar: boolean;
+  /** Read every frame (a ref, not state, so the intro can flip it on the exact frame it needs). */
+  quietRef?: { current: boolean };
 }
 
 interface Hover { x: number; y: number; left: number; top: number; flip: boolean }
@@ -27,11 +29,11 @@ const probe = installPerfProbe();
  * The loop stops while the canvas is off screen or the tab is hidden and resumes without
  * a time jump. The canvas fills its box, which keeps the map's aspect ratio (see CSS).
  */
-export function DroneCanvas({ sim, brush, showHeat, showLidar }: Props) {
+export function DroneCanvas({ sim, brush, showHeat, showLidar, quietRef }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const opts = useRef({ brush, showHeat, showLidar });
-  opts.current = { brush, showHeat, showLidar };
+  const opts = useRef({ brush, showHeat, showLidar, quiet: false });
+  opts.current = { brush, showHeat, showLidar, quiet: false };
   const cellRef = useRef(16);
   const [hover, setHover] = useState<Hover | null>(null);
   const drag = useRef({ down: false, lx: -1, ly: -1, dir: 0 });
@@ -68,6 +70,7 @@ export function DroneCanvas({ sim, brush, showHeat, showLidar }: Props) {
       const t0 = probe ? performance.now() : 0;
       const dt = clampDt(last, now);
       sim.tick(dt);
+      opts.current.quiet = quietRef?.current ?? false;
       renderer.frame(now, dt, opts.current);
       if (probe) probe.record(now - last, performance.now() - t0);
       last = now;
