@@ -90,6 +90,18 @@
     <tr><td>Integration + visual check</td><td class="mgr">Manager</td><td>Done</td><td>Found D* Lite float-tie bug in browser; fixed by Agent A in #4 with regression tests</td></tr>
   </table>
 
+  <h2>UI redesign: "flight instrument"</h2>
+  <p class="sub">Spec: <code>docs/redesign/PROPOSAL.md</code>. One PR per area, built by Sonnet agents, reviewed frame by frame by the manager (at least two iterations each). No changes to <code>cpp/</code>, <code>server/</code>, the planner API or the numbers shown. Evidence per PR in <code>docs/redesign/prN/</code>, reports in <code>docs/reports/ui-*.md</code>.</p>
+  <table>
+    <tr><th>PR</th><th>Area</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>#8 <code>feat/ui-foundation</code></td><td>Tokens, fonts, springs, layout, 390 px fix, loop pause, perf probe</td><td>Merged</td><td><code>?perf=1</code> frame-time probe</td></tr>
+    <tr><td>#9 <code>feat/ui-console</code></td><td>Keycaps, dials, switches, shortcuts, instrument telemetry</td><td>Merged</td><td>144 tests</td></tr>
+    <tr><td>#10 <code>feat/ui-map</code></td><td>Relief buildings, wind flow, patrol pucks, goal pad</td><td>Merged</td><td>Dirty-region bake; 183 tests</td></tr>
+    <tr><td>#11 <code>feat/ui-search-show</code></td><td>ReplanEvent, BFS flood order, wavefront, route draw-on, A*/D* contrast</td><td>Merged</td><td>230 tests</td></tr>
+    <tr><td>#12 <code>feat/ui-drone</code></td><td>Quad body, bank and shadow, LiDAR sweep, blockage pulse, landing lamp</td><td>Merged</td><td>290 tests; work p95 about 1 ms</td></tr>
+    <tr><td>#13 <code>feat/ui-intro</code></td><td>Guided first-visit intro, "?" replay, reduced-motion card, README screenshot</td><td>Merged</td><td>341 tests; <code>?intro=0|1</code> override</td></tr>
+  </table>
+
   <h2>Review gate (every PR)</h2>
   <table>
     <tr><th>Check</th><th>How</th></tr>
@@ -98,7 +110,7 @@
     <tr><td>Docs + comments</td><td>Doc comments on public API, English, no emojis</td></tr>
     <tr><td>Logging</td><td>pino on server, logger.ts on web, none in C++ hot loops</td></tr>
     <tr><td>Contract compliance</td><td>Signatures match <code>docs/CONTRACTS.md</code></td></tr>
-    <tr><td>Visual check</td><td>Manager runs the app in the browser pane and inspects</td></tr>
+    <tr><td>Visual check</td><td>Manager runs the app in the browser pane and inspects; for UI PRs, before/after stills at 1440x900 and 390x844, an 8-frame contact sheet, a WebM and frame times</td></tr>
   </table>
 </main>
 </body>
