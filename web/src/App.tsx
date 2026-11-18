@@ -3,10 +3,13 @@ import {
   ApiError, checkHealth, createScenario, decodeCells, deleteScenario, encodeCells,
   getScenario, listScenarios, postRun, type ScenarioSummary,
 } from './api/client';
-import { ControlPanel, type Brush } from './components/ControlPanel';
+import { ControlPanel, SPEED_RANGE, type Brush } from './components/ControlPanel';
+import { stepValue } from './components/controls/dialMath';
 import { DroneCanvas } from './components/DroneCanvas';
 import { TelemetryHud } from './components/TelemetryHud';
 import { createPlanner, type PlanMode } from './engine/plannerBridge';
+import { useShortcuts } from './input/useShortcuts';
+import type { ShortcutAction } from './input/keymap';
 import { Simulation, type SimStats } from './engine/simulation';
 import { log } from './logger';
 import { isDemoMode } from './demoMode';
@@ -74,13 +77,23 @@ export function App() {
   useEffect(() => {
     const el = consoleRef.current;
     if (!el) return;
-    const update = () => el.toggleAttribute('data-scroll', el.scrollHeight > el.clientHeight + 1);
+    // Measure the panel itself, not scrollHeight: scroll mode adds 44px of bottom padding, which would otherwise flip the flag back and forth.
+    const update = () => {
+      const inner = el.firstElementChild as HTMLElement | null;
+      if (!inner) return;
+      const pad = el.hasAttribute('data-scroll') ? 44 : 0;
+      el.toggleAttribute('data-scroll', inner.offsetHeight > el.clientHeight - pad + 1);
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     if (el.firstElementChild) ro.observe(el.firstElementChild);
     return () => ro.disconnect();
   }, [sim]);
+
+  // Keyboard shortcuts read the latest handlers through a ref, so the window listener is installed once.
+  const onShortcut = useRef<(a: ShortcutAction) => void>(() => {});
+  useShortcuts((a) => onShortcut.current(a));
 
   const refreshScenarios = useCallback(() => {
     listScenarios().then(setScenarios).catch(() => setApiOnline(false));
@@ -95,6 +108,18 @@ export function App() {
     if (!playing && sim.over) sim.reset();
     sim.setPlaying(!playing);
     setPlaying(!playing);
+  };
+
+  onShortcut.current = (a) => {
+    switch (a.type) {
+      case 'togglePlay': togglePlay(); break;
+      case 'reset': stop(); sim.reset(); break;
+      case 'toggleMode': setMode((m) => (m === 'astar' ? 'dstar' : 'astar')); break;
+      case 'toggleHeat': setShowHeat((v) => !v); break;
+      case 'toggleLidar': setShowLidar((v) => !v); break;
+      case 'brush': setBrush(a.brush); break;
+      case 'speed': setSpeed((v) => stepValue(v, SPEED_RANGE, a.dir)); break;
+    }
   };
 
   const onSave = async (name: string): Promise<string> => {
