@@ -197,13 +197,13 @@ function rotorSprite(cs: number, dpr: number, pal: Palette): Sprite {
   if (typeof gc === 'function') {
     // Two blades with a faint blur wedge each (low alpha, so rotation is felt, not seen).
     const grad = gc.call(g, 0, m, m);
-    grad.addColorStop(0, hi(0.16));
-    grad.addColorStop(0.1, hi(0.06));
+    grad.addColorStop(0, hi(0.07));
+    grad.addColorStop(0.1, hi(0.03));
     grad.addColorStop(0.26, hi(0));
-    grad.addColorStop(0.5, hi(0.16));
-    grad.addColorStop(0.6, hi(0.06));
+    grad.addColorStop(0.5, hi(0.07));
+    grad.addColorStop(0.6, hi(0.03));
     grad.addColorStop(0.76, hi(0));
-    grad.addColorStop(1, hi(0.16));
+    grad.addColorStop(1, hi(0.07));
     g.fillStyle = grad;
     g.beginPath();
     g.arc(m, m, R * 0.95, 0, Math.PI * 2);
@@ -216,22 +216,12 @@ function rotorSprite(cs: number, dpr: number, pal: Palette): Sprite {
   g.beginPath();
   g.arc(m, m, R * 0.985, 0, Math.PI * 2);
   g.stroke();
-  const lw = Math.max(1, cs * 0.045);
-  g.strokeStyle = hi(0.14);
-  g.lineWidth = lw * 0.8;
-  g.beginPath();
-  g.arc(m, m, R * 0.92, 0, Math.PI * 2);
-  g.stroke();
+  // Only a hint of edge: one thin bevel of about 110 degrees on the top-left arc, no all-round ring.
   g.lineCap = 'round';
   g.strokeStyle = hi(0.3);
-  g.lineWidth = lw;
+  g.lineWidth = Math.max(1, cs * 0.035);
   g.beginPath();
-  g.arc(m, m, R * 0.92, Math.PI * 0.82, Math.PI * 1.68);
-  g.stroke();
-  g.strokeStyle = hi(0.58);
-  g.lineWidth = lw;
-  g.beginPath();
-  g.arc(m, m, R * 0.92, Math.PI * 1.0, Math.PI * 1.5);
+  g.arc(m, m, R * 0.92, Math.PI * 0.96, Math.PI * 1.57);
   g.stroke();
   g.lineCap = 'butt';
   g.fillStyle = col(1);

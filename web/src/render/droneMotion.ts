@@ -90,7 +90,7 @@ export function footprintCover(isWall: (x: number, y: number) => boolean, cx: nu
 
 /** Drone span in cells (shell plus rotors), and the smallest span it may have on screen, in CSS px. */
 const DRONE_SPAN_CELLS = 1.8;
-export const MIN_DRONE_PX = 34;
+export const MIN_DRONE_PX = 29;
 export const MAX_DRONE_SCALE = 2.6;
 
 /**

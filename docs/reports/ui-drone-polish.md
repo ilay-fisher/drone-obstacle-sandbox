@@ -4,8 +4,8 @@ Fixes the "still weak" list from PR 4 (`docs/reports/ui-drone.md`). No change to
 
 ## What changed
 
-1. **Minimum on-screen size.** `droneDrawScale(cell)` (pure, in `droneMotion.ts`) lifts the drone to a 34 CSS px span when the cell-based size is smaller, capped at 2.6x. At 1440 (cell 21.3) the scale is exactly 1, so the desktop drone is unchanged. At 390 (cell 7.46) it is 2.53, up from about 13 CSS px (the old "~25 px" was device px). Sprites are built for the scaled size, so there is no per-frame scaling cost. The LiDAR, pulse and goal stay in map cells.
-2. **Rotor contrast.** Discs stay graphite. Each rotor now has a thin dark outer line, a faint light ring all round (so the disc silhouette reads on dark ground) and a lighter bevel on the top-left arc (one light source), fading to the sides.
+1. **Minimum on-screen size.** `droneDrawScale(cell)` (pure, in `droneMotion.ts`) lifts the drone to a 29 CSS px span when the cell-based size is smaller, capped at 2.6x. At 1440 (cell 21.3) the scale is exactly 1, so the desktop drone is unchanged. At 390 (cell 7.46) it is 2.16, up from about 13 CSS px (the old "~25 px" was device px). Sprites are built for the scaled size, so there is no per-frame scaling cost. The LiDAR, pulse and goal stay in map cells.
+2. **Rotor contrast.** Discs stay graphite. Each rotor has a thin dark outer line and a single thin bevel on the top-left arc only (about 110 degrees, alpha 0.3, one light source). No all-round light ring; the conic blur wedge is dark and subtle (alpha 0.07/0.03), so body and nav light dominate.
 3. **LiDAR ticks.** Longer (0.46 cell half-length, was 0.3), thicker (at least 2.2 px, was 1.4), neutral paper colour (`pal.drone`, no accent) with a dark under-stroke so they hold on light and dark cells. Still the same short flash (about 0.2 s). Visible at DPR 1 (`before/after-lidar-ticks-dpr1.png`).
 4. **Blockage pulse is reduced, not skipped, during a flood.** `pulseMode()` returns `full`, `reduced` or `none`. While the previous replan's flood still plays the ring is the reduced one: single thin ring, 55% alpha, 50% weight, 260 ms (full: 400 ms), no halo or inner ring. Rate limits: 700 ms between full pulses, 300 ms between reduced ones.
 5. **Shadow over buildings samples the shadow footprint.** `footprintCover()` (pure) returns the exact overlap area of the shadow's 1.2 x 1.2 cell footprint with the wall cells under it, centred on the real shadow offset (speed and altitude aware). `coverFor(under, shadowCover)` maps it to 0..0.8, or 1 when the drone is over a wall. It feeds the existing exponential cover smoothing, so it slides in without a pop. The closure that tests a cell is created once per simulation, so frames allocate nothing.
@@ -13,7 +13,7 @@ Fixes the "still weak" list from PR 4 (`docs/reports/ui-drone.md`). No change to
 
 ## Tests
 
-360 pass (was 341), `tsc` clean. The `test:` commit is red by design (TDD). New: reduced pulse modes, durations, gaps and phases; `footprintCover` (area, partial cover, no pop, degenerate radius); `coverFor`; `droneDrawScale` (1440 unchanged, 390 reaches 34 px, cap, monotone, NaN). The `feat:` commit also fixes two of my own test fixtures (float tolerance in the slide test, slide range).
+360 pass (was 341), `tsc` clean. The `test:` commit is red by design (TDD). New: reduced pulse modes, durations, gaps and phases; `footprintCover` (area, partial cover, no pop, degenerate radius); `coverFor`; `droneDrawScale` (1440 unchanged, 390 reaches 29 px, cap, monotone, NaN). The `feat:` commit also fixes two of my own test fixtures (float tolerance in the slide test, slide range).
 
 ## Frame times (`?perf=1`, `window.__perf()`, Urban Canyon, 14 wall edits while flying, about 8 s each)
 
@@ -45,11 +45,12 @@ Worst p95 work is 1.5 ms, far under the 8 ms budget. One TS-fallback A* frame in
 1. Round 1 frames: the rotor bevel (0.85 alpha) read as silver coins at 3x. Reduced to 0.58 with a 0.30 shoulder and a 0.14 ring, discs stay graphite.
 2. The first min-size cap (1.7x) only gave about 23 px at 390. Raised the cap to 2.6x so the 34 px target is met on the real phone map; the 390 frame then reads as a quad with the shell and nav light still dominant.
 3. The reduced ring was barely visible in the first sheet; alpha 0.5 to 0.55 and weight 0.45 to 0.5 (still under 60% of the full ring, which a test pins).
-4. Tooling: the capture scripts reach the simulation through the React fiber (evidence only, no app change) to place walls relative to the drone.
+4. Review round 1 (PR 15): rotors still read as silver coins (full ring plus whitish sheen). Dropped the all-round ring and inner bright arc, kept one 110 degree top-left bevel at 0.3, darkened the blur wedge. At 390 the 34 px drone was over-scaled with toy-like rims: `MIN_DRONE_PX` 34 to 29 (scale 2.16). Retook after-1440, after-390, both closeups, blockage sheet and WebM. Sprites only shrink slightly, so frametimes.json is unchanged.
+5. Tooling: the capture scripts reach the simulation through the React fiber (evidence only, no app change) to place walls relative to the drone.
 
 ## Still weak
 
-- At 390 the drone at 34 px is about 15% of the map height and bigger than the patrol pucks. It reads, but it is a deliberate over-scale; 30 px would be calmer.
+- At 390 the drone at 29 px is still a little larger than a patrol puck, but the quad shape and nav light separate it. Going lower risks losing the rotors.
 - Closeups are taken at the start pose; a banking closeup mid-flight is only in the WebM.
 - The reduced pulse is faint on purpose; on a bright projector it may be hard to see.
 - LiDAR ticks appear only when the beam crosses a wall inside the radius, so a single frame often has none.

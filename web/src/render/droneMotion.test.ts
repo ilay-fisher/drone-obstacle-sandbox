@@ -6,6 +6,7 @@ import {
   coverFor,
   droneDrawScale,
   MAX_DRONE_SCALE,
+  MIN_DRONE_PX,
   footprintCover,
   createDroneMotion,
   droneFinalState,
@@ -327,9 +328,9 @@ describe('droneDrawScale (minimum on-screen size)', () => {
     expect(droneDrawScale(40)).toBe(1);
   });
   it('lifts a phone-sized drone to the minimum span', () => {
-    const s = droneDrawScale(14);
+    const s = droneDrawScale(10);
     expect(s).toBeGreaterThan(1.2);
-    expect(14 * 1.8 * s).toBeCloseTo(34, 5);
+    expect(10 * 1.8 * s).toBeCloseTo(MIN_DRONE_PX, 5);
   });
   it('never shrinks, and caps the lift on tiny maps', () => {
     expect(droneDrawScale(100)).toBe(1);
@@ -352,7 +353,7 @@ describe('droneDrawScale (minimum on-screen size)', () => {
     const cell = 358 / 48;
     const s = droneDrawScale(cell);
     expect(s).toBeLessThan(MAX_DRONE_SCALE);
-    expect(cell * 1.8 * s).toBeCloseTo(34, 5);
+    expect(cell * 1.8 * s).toBeCloseTo(MIN_DRONE_PX, 5);
   });
   it('leaves the 1440 desktop map (cell 1024 / 48) alone', () => {
     expect(droneDrawScale(1024 / 48)).toBe(1);
