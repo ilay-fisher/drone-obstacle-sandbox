@@ -18,7 +18,7 @@ Branch `feat/ui-foundation`. Scope: tokens, fonts, springs, stage layout, the 39
 
 ## Tests
 
-`cd web && npm test`: 11 files, 86 tests passed (was 5 files / 61 tests before; 25 new: spring, loop control, frame stats, latency format, palette, token drift). `npm run build` (tsc plus vite) passes. `VITE_BASE=/drone-obstacle-sandbox/ VITE_DEMO_MODE=true npm run build` passes and the emitted CSS references `/drone-obstacle-sandbox/assets/*.woff2`. The code only accepts the literal `true` for `VITE_DEMO_MODE` (`1` does not enable demo mode).
+`cd web && npm test`: 11 files, 86 tests passed (was 5 files / 45 tests before; 41 new: spring, loop control, frame stats, latency format, palette, token drift). `npm run build` (tsc plus vite) passes. `VITE_BASE=/drone-obstacle-sandbox/ VITE_DEMO_MODE=true npm run build` passes and the emitted CSS references `/drone-obstacle-sandbox/assets/*.woff2`. The code only accepts the literal `true` for `VITE_DEMO_MODE` (`1` does not enable demo mode).
 
 Test commits come first in history (`test:` before `feat:`).
 
