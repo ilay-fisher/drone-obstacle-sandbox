@@ -204,8 +204,12 @@ export function ControlPanel(p: ControlPanelProps) {
       </Tray>
 
       {p.onReplayIntro && (
-        <div className="panel-foot">
-          <Keycap legend="Intro" label="Show the intro again" shortcut="?" onClick={p.onReplayIntro} />
+        <div className="panel-foot key-stack">
+          <Keycap
+            legend="Intro" label="Show the intro again"
+            icon={<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><text x="12" y="18" textAnchor="middle" fontSize="19" fontWeight="700" fill="currentColor" fontFamily="var(--font-mono)">?</text></svg>}
+            onClick={p.onReplayIntro}
+          />
         </div>
       )}
     </div>

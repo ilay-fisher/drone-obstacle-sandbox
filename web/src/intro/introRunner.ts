@@ -9,7 +9,7 @@
  */
 import type { CellValue, PlanMode } from '../engine/plannerBridge';
 import type { SimState } from '../engine/simulation';
-import { blockCellsAhead, cellsWithValue, dueCount, staggerOrder } from './introCues';
+import { blockCellsAhead, cellsWithValue, dueCount, paintBatches } from './introCues';
 import { CUES } from './introScript';
 
 /** Drone speed multiplier during the intro: slow enough that the route is read before it is crossed. */
@@ -18,6 +18,8 @@ export const INTRO_SPEED = 0.8;
 export const BLOCK_AHEAD = 9;
 /** Half-height of a scripted wall: it spans `2 * BLOCK_HALF + 1` cells across the avenue. */
 export const BLOCK_HALF = 2;
+/** Most cells painted in one frame: under the renderer's 48-cell limit for animated edits. */
+export const MAX_BATCH = 40;
 
 /** The part of `Simulation` the script uses. */
 export interface IntroSim {
@@ -48,7 +50,7 @@ type CueName = 'loadCity' | 'play' | 'block1' | 'dstar' | 'block2';
 const ORDER: CueName[] = ['loadCity', 'play', 'block1', 'dstar', 'block2'];
 
 export class IntroRunner {
-  private readonly walls: Int32Array;
+  private readonly batches: Int32Array[];
   private readonly wind: Int32Array;
   private painted = 0;
   private windPainted = false;
@@ -61,7 +63,7 @@ export class IntroRunner {
     private readonly city: SimState,
     private readonly empty: SimState,
   ) {
-    this.walls = staggerOrder(cellsWithValue(city.cells, 1), sim.width);
+    this.batches = paintBatches(cellsWithValue(city.cells, 1), sim.width, sim.height, MAX_BATCH);
     this.wind = cellsWithValue(city.cells, 2);
   }
 
@@ -120,8 +122,8 @@ export class IntroRunner {
   }
 
   /**
-   * Paints the city in. Wind first (it is a soft region, not a building), then walls in a
-   * staggered wave; each wall drops in on its own spring (the renderer's edit effect).
+   * Paints the city in. Wind first (it is a soft region, not a building), then one whole
+   * building per frame in a left to right wave; each drops in on the snappy spring (the renderer's edit effect).
    * `reset` after every batch: edits queue a counted replan, and nothing should be counted
    * while the city is still being built.
    */
@@ -133,10 +135,10 @@ export class IntroRunner {
       for (let k = 0; k < this.wind.length; k++) sim.editCell(this.wind[k] % sim.width, (this.wind[k] / sim.width) | 0, 2);
       did = this.wind.length > 0;
     }
-    const due = dueCount(this.walls.length, tMs - CUES.paintStart, CUES.paintMs);
-    for (; this.painted < due; this.painted++) {
-      const c = this.walls[this.painted];
-      sim.editCell(c % sim.width, (c / sim.width) | 0, 1);
+    // One building per frame, so the renderer animates it as a single clean drop.
+    const due = dueCount(this.batches.length, tMs - CUES.paintStart, CUES.paintMs);
+    if (this.painted < due) {
+      for (const c of this.batches[this.painted++]) sim.editCell(c % sim.width, (c / sim.width) | 0, 1);
       did = true;
     }
     if (did) sim.reset();

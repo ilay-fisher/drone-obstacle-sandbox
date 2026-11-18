@@ -53,3 +53,42 @@ export function blockCellsAhead(
   for (let y = cy - half; y <= cy + half; y++) if (y >= 0 && y < height) out.push({ x, y });
   return out;
 }
+
+/**
+ * Splits wall cells into buildings (4-connected pieces), ordered left to right, each at most
+ * `maxBatch` cells (a larger block is cut in row order). The renderer animates an edit only
+ * when fewer than 48 cells change in one frame, so painting one batch per frame makes every
+ * building drop in whole, on its own spring, instead of dissolving into scattered cells.
+ */
+export function paintBatches(cells: Int32Array, width: number, height: number, maxBatch: number): Int32Array[] {
+  const present = new Set<number>(cells);
+  const seen = new Set<number>();
+  const blocks: number[][] = [];
+  for (const start of Array.from(cells).sort((a, b) => a - b)) {
+    if (seen.has(start)) continue;
+    const block: number[] = [];
+    const stack = [start];
+    seen.add(start);
+    while (stack.length) {
+      const c = stack.pop()!;
+      block.push(c);
+      const x = c % width;
+      const y = (c / width) | 0;
+      const next: number[] = [];
+      if (x > 0) next.push(c - 1);
+      if (x < width - 1) next.push(c + 1);
+      if (y > 0) next.push(c - width);
+      if (y < height - 1) next.push(c + width);
+      for (const n of next) if (present.has(n) && !seen.has(n)) { seen.add(n); stack.push(n); }
+    }
+    block.sort((a, b) => a - b);
+    blocks.push(block);
+  }
+  const minX = (b: number[]) => b.reduce((m, c) => Math.min(m, c % width), width);
+  blocks.sort((a, b) => minX(a) - minX(b) || a[0] - b[0]);
+  const out: Int32Array[] = [];
+  for (const b of blocks) {
+    for (let i = 0; i < b.length; i += maxBatch) out.push(Int32Array.from(b.slice(i, i + maxBatch)));
+  }
+  return out;
+}
