@@ -1,0 +1,29 @@
+name: ci-cpp
+
+on:
+  push:
+    paths: ['cpp/**', 'web/src/wasm/**', '.github/workflows/ci-cpp.yml']
+  pull_request:
+    paths: ['cpp/**', 'web/src/wasm/**', '.github/workflows/ci-cpp.yml']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tests (warnings are errors)
+        run: g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror cpp/test_planner.cpp cpp/planner.cpp -o test_planner
+      - name: Run tests
+        run: ./test_planner
+
+  wasm:
+    runs-on: ubuntu-latest
+    container: emscripten/emsdk:4.0.10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Wasm
+        run: USE_LOCAL_EMCC=1 ./cpp/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: planner-wasm
+          path: web/src/wasm/
