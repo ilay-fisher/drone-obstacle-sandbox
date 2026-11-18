@@ -19,8 +19,8 @@ export const MIN_PULSE_GAP_MS = 700;
 /** The reduced pulse: shorter, thinner and fainter, so it can play over a flood without competing. */
 export const REDUCED_PULSE_MS = 260;
 export const REDUCED_MIN_GAP_MS = 300;
-const REDUCED_ALPHA = 0.5;
-const REDUCED_WEIGHT = 0.45;
+const REDUCED_ALPHA = 0.55;
+const REDUCED_WEIGHT = 0.5;
 
 /** What the decision needs to know about the newest replan event. */
 export interface PulseCheck {
