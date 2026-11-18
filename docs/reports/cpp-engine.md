@@ -12,7 +12,7 @@
 - **Two separate search states**: A* and D* Lite each own a heap and node arrays, so running A* never corrupts the persistent D* Lite queue.
 - **No allocation in the hot path**: all vectors (grid, heat, path, node arrays, heaps, pending list) are sized in the constructor; `computePath` only fills and indexes them.
 - **D* Lite**: backward search from the goal, `g`/`rhs`, km key modifier when the start moves. `setCell` records changed cells in a deduplicated pending list; the next D* call runs UpdateVertex on each changed cell and its 8 neighbours (this covers cost changes and the diagonal corner rule). A new goal re-initializes the state.
-- **Floating point tolerance**: D* Lite key comparisons use a 1e-9 tolerance on the first key. Without it, equal keys that differ by a few ulps (sum of sqrt(2) terms vs closed-form octile) ended the loop early and left a stale route. Found by the replan test.
+- **Floating point ties (fixed in fix/dstar-false-blocked)**: keys that are mathematically equal can differ by a few ulps (sum of sqrt(2) terms vs closed-form octile). The heap stays exactly ordered, and the D* Lite stop test expands while the queue minimum is below the start key plus 1e-9. An earlier version used a tolerant comparison inside the heap order, which broke the heap invariant and made D* Lite report "no path" after a start jump plus a wall drag.
 - **Path cost** is reported as the sum of step costs along the extracted path in both modes, and tests recheck it against the path.
 - **Heat**: `uint8` reset every call, saturating at 255. For D* Lite it shows only cells re-expanded in that call.
 - **Obstruction**: scans stored path cells from `fromIndex`, filters by Euclidean radius, then Bresenham line of sight (intermediate walls occlude).

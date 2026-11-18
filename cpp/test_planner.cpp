@@ -2,6 +2,7 @@
 // Build: g++ -std=c++17 -Wall -Wextra -Wpedantic cpp/test_planner.cpp cpp/planner.cpp -o test_planner
 #include "planner.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -353,6 +354,124 @@ static void testTelemetryAndClear() {
   CHECK(near(p.getPathCost(), 9 * kSqrt2));
 }
 
+/// Writes the Urban Canyon preset (web/src/scenarios/presets.ts) into `p` cell by cell,
+/// the way the web simulation does after clearGrid.
+static void loadUrbanCanyon(DronePlanner& p) {
+  const int w = 48, h = 30, mid = h / 2;
+  auto rect = [&](int x0, int y0, int x1, int y1, int v) {
+    for (int y = y0; y <= y1; ++y)
+      for (int x = x0; x <= x1; ++x) p.setCell(x, y, v);
+  };
+  for (int i = 0; i < 5; ++i) {
+    int x0 = 6 + i * 8;
+    rect(x0, 2, x0 + 4, mid - 5, 1);
+    rect(x0, mid + 4, x0 + 4, h - 3, 1);
+  }
+  rect(22, mid - 4, 25, mid + 3, 2);
+  rect(11, 2, 13, mid - 5, 2);
+  rect(35, mid + 4, 37, h - 3, 2);
+  rect(16, mid - 4, 16, mid, 1);
+  rect(30, mid, 30, mid + 3, 1);
+  (void)w;
+}
+
+/// Applies the same edit to both planners and checks that D* Lite (mode 1) agrees with a
+/// fresh A* (mode 0) on reachability and cost for the given start.
+static void compareFromStart(DronePlanner& d, DronePlanner& ref, int sx, int sy, int gx, int gy) {
+  bool fd = d.computePath(sx, sy, gx, gy, 1);
+  bool fr = ref.computePath(sx, sy, gx, gy, 0);
+  CHECK(fd == fr);
+  if (fd && fr) {
+    CHECK(near(d.getPathCost(), ref.getPathCost(), 1e-6));
+    CHECK(pathValid(d, sx, sy, gx, gy));
+  }
+}
+
+/// Replays what the web simulation does: load a preset after clearGrid, plan with D* Lite,
+/// let the drone advance along the path (start changes between calls), then drag a vertical
+/// wall across the route with repeated setCell calls and a replan between mouse events.
+static void testUrbanCanyonDragRegression() {
+  DronePlanner d(48, 30), ref(48, 30);
+  loadUrbanCanyon(d);
+  loadUrbanCanyon(ref);
+  const int gx = 45, gy = 15;
+  int sx = 2, sy = 15;
+  compareFromStart(d, ref, sx, sy, gx, gy);
+  for (int step = 0; step < 6; ++step) {  // drone advances ~4 cells per replan
+    int pl = d.getPathLength();
+    if (pl < 6) break;
+    int c = d.pathData()[4];
+    sx = c % 48;
+    sy = c / 48;
+    compareFromStart(d, ref, sx, sy, gx, gy);
+  }
+  // Drag a wall at x = 38 from y = 7 to y = 22; each event repeats the same cell and replans.
+  for (int y = 7; y <= 22; ++y) {
+    for (int rep = 0; rep < 3; ++rep) {
+      if (38 == gx && y == gy) continue;
+      d.setCell(38, y, 1);
+      ref.setCell(38, y, 1);
+      compareFromStart(d, ref, sx, sy, gx, gy);
+      if (d.getPathLength() > 4 && rep == 2) {  // drone keeps moving during the drag
+        int c = d.pathData()[1];
+        sx = c % 48;
+        sy = c / 48;
+      }
+    }
+  }
+}
+
+/// Exact call sequence captured from the web simulation (Urban Canyon, D* Lite, drone moves
+/// from (2,15) to (18,16) in one jump, then a wall is dragged into the gap at x = 38).
+static void testUrbanCanyonSimReplay() {
+  DronePlanner d(48, 30), ref(48, 30);
+  loadUrbanCanyon(d);
+  loadUrbanCanyon(ref);
+  CHECK(d.computePath(2, 15, 45, 15, 0));
+  compareFromStart(d, ref, 2, 15, 45, 15);
+  for (int y = 11; y <= 18; ++y) {
+    d.setCell(38, y, 1);
+    ref.setCell(38, y, 1);
+    compareFromStart(d, ref, 18, 16, 45, 15);
+    compareFromStart(d, ref, 18, 16, 45, 15);
+  }
+}
+
+/// Differential test: after every call D* Lite must match a fresh A*. Edits include repeated
+/// sets of one cell, set-then-restore before the next call, bursts of many edits, and start
+/// jumps of several cells.
+static void testDStarDifferentialStress() {
+  Rng rng(99);
+  for (int m = 0; m < 40; ++m) {
+    const int W = 24, H = 16;
+    DronePlanner d(W, H), ref(W, H);
+    fillRandom(d, rng, 22, 8);
+    copyGrid(d, ref);
+    int sx, sy, gx, gy;
+    pickFree(d, rng, sx, sy);
+    pickFree(d, rng, gx, gy);
+    for (int round = 0; round < 40; ++round) {
+      int edits = rng.range(12);
+      for (int e = 0; e < edits; ++e) {
+        int x = rng.range(W), y = rng.range(H), v = rng.range(3);
+        if ((x == sx && y == sy) || (x == gx && y == gy)) continue;
+        int kind = rng.range(3);
+        int old = d.getCell(x, y);
+        int reps = kind == 0 ? 1 + rng.range(5) : 1;
+        for (int r = 0; r < reps; ++r) { d.setCell(x, y, v); ref.setCell(x, y, v); }
+        if (kind == 1) { d.setCell(x, y, old); ref.setCell(x, y, old); }  // set then restore
+      }
+      compareFromStart(d, ref, sx, sy, gx, gy);
+      if (d.getPathLength() > 1) {  // start jumps up to 6 cells along the path
+        int k = std::min(d.getPathLength() - 1, 1 + rng.range(6));
+        int c = d.pathData()[k];
+        sx = c % W;
+        sy = c / W;
+      }
+    }
+  }
+}
+
 struct TestCase { const char* name; void (*fn)(); };
 
 int main() {
@@ -374,6 +493,9 @@ int main() {
       {"hasPathObstruction occluded by wall", testObstructionOccluded},
       {"heat buffer only at expanded cells", testHeatBuffer},
       {"telemetry and clearGrid", testTelemetryAndClear},
+      {"D* Lite Urban Canyon drag regression", testUrbanCanyonDragRegression},
+      {"D* Lite Urban Canyon simulation replay", testUrbanCanyonSimReplay},
+      {"D* Lite differential stress vs fresh A*", testDStarDifferentialStress},
   };
   int failures = 0;
   for (const TestCase& t : tests) {
