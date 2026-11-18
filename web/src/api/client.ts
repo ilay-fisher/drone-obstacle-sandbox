@@ -1,3 +1,4 @@
+import { isDemoMode } from '../demoMode';
 import { log } from '../logger';
 
 /** Wire types from CONTRACTS section 4. */
@@ -55,6 +56,8 @@ export function decodeCells(b64: string): Uint8Array {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Static demo has no backend: fail as "offline" without issuing a request the console would report.
+  if (isDemoMode()) throw new ApiError('API unavailable in demo mode', true);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   let res: Response;

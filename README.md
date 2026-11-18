@@ -7,6 +7,8 @@ PostgreSQL service stores scenarios and mission telemetry.
 
 ![Sandbox screenshot](docs/screenshot.png)
 
+**Live demo:** https://ilay-fisher.github.io/drone-obstacle-sandbox/ (the demo runs in the browser only, with no backend, so saving and loading scenarios is disabled; run the full stack locally for persistence).
+
 Delivery plan and per-workstream reports: `docs/WORKFLOW.html`, `docs/reports/`.
 
 ## Architecture

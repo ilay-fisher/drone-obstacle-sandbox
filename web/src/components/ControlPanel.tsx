@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ScenarioSummary } from '../api/client';
+import { REPO_URL } from '../demoMode';
 import type { PlanMode } from '../engine/plannerBridge';
 import { PRESET_NAMES, type PresetName } from '../scenarios/presets';
 
@@ -32,6 +33,8 @@ export interface ControlPanelProps {
   showLidar: boolean;
   onShowLidar: (v: boolean) => void;
   apiOnline: boolean;
+  /** Static demo build: replace the save/load UI with an explanatory note. */
+  demo?: boolean;
   scenarios: ScenarioSummary[];
   onRefreshScenarios: () => void;
   onSave: (name: string) => Promise<string>;
@@ -108,23 +111,32 @@ export function ControlPanel(p: ControlPanelProps) {
       </section>
 
       <section>
-        <h3>Scenarios {!p.apiOnline && <span className="badge off">API offline</span>}</h3>
-        <div className="row">
-          <input className="text" placeholder="Scenario name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
-          <button className="btn" disabled={!p.apiOnline} onClick={save}>Save Scenario</button>
-        </div>
-        <button className="btn wide" disabled={!p.apiOnline} onClick={toggleList}>Load Scenario</button>
-        {msg && <div className="note">{msg}</div>}
-        {listOpen && p.apiOnline && (
-          <ul className="scenarios">
-            {p.scenarios.length === 0 && <li className="note">No saved scenarios</li>}
-            {p.scenarios.map((s) => (
-              <li key={s.id}>
-                <button className="link" onClick={() => p.onLoad(s.id)}>{s.name}</button>
-                <button className="link danger" aria-label={`Delete ${s.name}`} onClick={() => p.onDelete(s.id)}>delete</button>
-              </li>
-            ))}
-          </ul>
+        <h3>Scenarios {!p.apiOnline && !p.demo && <span className="badge off">API offline</span>}</h3>
+        {p.demo ? (
+          <div className="note">
+            Saving and loading scenarios requires running the full stack locally.{' '}
+            <a href={REPO_URL} target="_blank" rel="noreferrer">See the README</a>.
+          </div>
+        ) : (
+          <>
+            <div className="row">
+              <input className="text" placeholder="Scenario name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+              <button className="btn" disabled={!p.apiOnline} onClick={save}>Save Scenario</button>
+            </div>
+            <button className="btn wide" disabled={!p.apiOnline} onClick={toggleList}>Load Scenario</button>
+            {msg && <div className="note">{msg}</div>}
+            {listOpen && p.apiOnline && (
+              <ul className="scenarios">
+                {p.scenarios.length === 0 && <li className="note">No saved scenarios</li>}
+                {p.scenarios.map((s) => (
+                  <li key={s.id}>
+                    <button className="link" onClick={() => p.onLoad(s.id)}>{s.name}</button>
+                    <button className="link danger" aria-label={`Delete ${s.name}`} onClick={() => p.onDelete(s.id)}>delete</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
     </div>

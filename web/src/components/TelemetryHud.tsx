@@ -5,10 +5,12 @@ interface Props {
   engine: EngineMode;
   stats: SimStats;
   apiOnline: boolean;
+  /** Static demo build: there is no backend, so show a label instead of online/offline. */
+  demo?: boolean;
 }
 
 /** Live telemetry readout. Receives a plain snapshot, so it re-renders a few times per second. */
-export function TelemetryHud({ engine, stats, apiOnline }: Props) {
+export function TelemetryHud({ engine, stats, apiOnline, demo = false }: Props) {
   const rows: [string, string][] = [
     ['Engine Mode', engine],
     ['Replan Latency', `${stats.lastLatencyMs.toFixed(3)} ms`],
@@ -29,7 +31,10 @@ export function TelemetryHud({ engine, stats, apiOnline }: Props) {
         ))}
         <div className="hud-row">
           <dt>API</dt>
-          <dd><span className={apiOnline ? 'dot on' : 'dot off'} />{apiOnline ? 'online' : 'offline'}</dd>
+          <dd>
+            <span className={apiOnline ? 'dot on' : 'dot off'} />
+            {demo ? 'demo (no backend)' : apiOnline ? 'online' : 'offline'}
+          </dd>
         </div>
       </dl>
     </div>
