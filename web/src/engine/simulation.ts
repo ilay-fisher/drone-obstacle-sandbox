@@ -1,5 +1,8 @@
 import { log } from '../logger';
 import type { CellValue, PlanMode, Planner } from './plannerBridge';
+import type { ReplanEvent, ReplanKind } from './replanEvent';
+
+export type { ReplanEvent, ReplanKind } from './replanEvent';
 
 /** Cells per second the drone covers at 1.0x speed. */
 export const DRONE_RATE = 6;
@@ -91,7 +94,18 @@ export class Simulation {
    * edits that bypass `Simulation` (calling `planner.setCell` directly) are not detected.
    */
   gridVersion = 0;
+  /** The most recent planning call, for the renderer; null before the first plan. */
+  lastReplan: ReplanEvent | null = null;
+  /** Number of planning calls so far (the renderer compares it to spot a new event). */
+  replanSeq = 0;
+  /** Time source for event timestamps; tests replace it. */
+  clock: () => number = () => performance.now();
 
+  private readonly changedFlag: Uint8Array;
+  private readonly changedList: Int32Array;
+  private changedCount = 0;
+  /** Goal cell of the last D* Lite call; -1 when the next one would search from scratch. */
+  private dstarGoal = -1;
   private frac = 0;
   private base: MissionStatus = 'Idle';
   private started = false;
@@ -105,6 +119,8 @@ export class Simulation {
   constructor(readonly planner: Planner, private readonly onMissionEnd?: (s: MissionSummary) => void) {
     this.width = planner.width;
     this.height = planner.height;
+    this.changedFlag = new Uint8Array(planner.width * planner.height);
+    this.changedList = new Int32Array(planner.width * planner.height);
   }
 
   /** True once the mission has ended (reached, or blocked for too long). */
@@ -148,7 +164,7 @@ export class Simulation {
     this.flash = 0;
     this.droneX = this.startX + 0.5;
     this.droneY = this.startY + 0.5;
-    this.plan(false);
+    this.plan('preview');
     this.refreshStatus();
   }
 
@@ -156,6 +172,7 @@ export class Simulation {
   clearMap(): void {
     this.patrolCount = 0;
     this.planner.clearGrid();
+    this.forgetChanges();
     this.gridVersion++;
     this.reset();
   }
@@ -169,7 +186,7 @@ export class Simulation {
       return;
     }
     if (v === 1 && (this.isEndpoint(x, y) || (x === Math.floor(this.droneX) && y === Math.floor(this.droneY)))) return;
-    if (this.planner.getCell(x, y) !== v) { this.planner.setCell(x, y, v); this.needsReplan = true; this.gridVersion++; }
+    if (this.planner.getCell(x, y) !== v) { this.planner.setCell(x, y, v); this.markChanged(y * this.width + x); this.needsReplan = true; this.gridVersion++; }
   }
 
   /** Clears a cell and removes any patrol standing on it. */
@@ -177,6 +194,7 @@ export class Simulation {
     const pi = this.patrolAt(x, y);
     if (pi >= 0) {
       this.planner.setCell(x, y, this.patrolUnder[pi] as CellValue);
+      this.markChanged(y * this.width + x);
       const last = --this.patrolCount;
       this.patrolX[pi] = this.patrolX[last]; this.patrolY[pi] = this.patrolY[last];
       this.patrolDX[pi] = this.patrolDX[last]; this.patrolDY[pi] = this.patrolDY[last];
@@ -201,6 +219,7 @@ export class Simulation {
     this.patrolX[i] = x; this.patrolY[i] = y; this.patrolDX[i] = dx; this.patrolDY[i] = dy;
     this.patrolUnder[i] = this.planner.getCell(x, y);
     this.planner.setCell(x, y, 1);
+    this.markChanged(y * this.width + x);
     this.needsReplan = true;
     return true;
   }
@@ -236,6 +255,7 @@ export class Simulation {
     }
     this.setEndpoints(s.start.x, s.start.y, s.goal.x, s.goal.y);
     for (const p of s.patrols) this.addPatrol(p.x, p.y, p.dx, p.dy);
+    this.forgetChanges();
     this.gridVersion++;
     this.reset();
     return true;
@@ -244,21 +264,21 @@ export class Simulation {
   /** Advances the world by `dt` seconds. Allocation-free. */
   tick(dt: number): void {
     if (this.flash > 0) this.flash -= dt;
-    if (this.needsReplan) { this.needsReplan = false; this.plan(true); }
+    if (this.needsReplan) { this.needsReplan = false; this.plan('replan'); }
     if (!this.playing || this.ended || !this.started) { this.refreshStatus(); return; }
     this.stats.elapsedMs += dt * 1000;
     this.stepPatrols(dt);
     if (this.base === 'Blocked') {
       this.blockedFor += dt;
       this.retryIn -= dt;
-      if (this.retryIn <= 0) { this.retryIn = RETRY_SECONDS; this.plan(false); }
+      if (this.retryIn <= 0) { this.retryIn = RETRY_SECONDS; this.plan('retry'); }
       if (this.base === 'Blocked' && this.blockedFor >= BLOCKED_GIVE_UP_SECONDS) this.finish('blocked');
     } else if (this.base === 'En Route') {
       const cx = Math.floor(this.droneX);
       const cy = Math.floor(this.droneY);
       const next = this.pathIdx + 1 < this.pathLen ? this.path[this.pathIdx + 1] : -1;
       const nextIsWall = next >= 0 && this.planner.grid()[next] === 1;
-      if (nextIsWall || this.planner.hasPathObstruction(cx, cy, this.lidarRadius, this.pathIdx + 1)) this.plan(true);
+      if (nextIsWall || this.planner.hasPathObstruction(cx, cy, this.lidarRadius, this.pathIdx + 1)) this.plan('replan');
       if (this.base === 'En Route') this.advance(dt);
     }
     this.refreshStatus();
@@ -277,12 +297,29 @@ export class Simulation {
     this.stats.status = this.base === 'En Route' && this.flash > 0 ? 'Replanning' : this.base;
   }
 
-  /** Plans from the cell the drone occupies; `count` says whether it is a replan for the stats. */
-  private plan(count: boolean): void {
+  /** Records that a cell changed since the last planning call (each cell once). */
+  private markChanged(i: number): void {
+    if (this.changedFlag[i]) return;
+    this.changedFlag[i] = 1;
+    this.changedList[this.changedCount++] = i;
+  }
+
+  /** Drops the pending change list and the D* Lite state: the next D* call searches from scratch. */
+  private forgetChanges(): void {
+    for (let k = 0; k < this.changedCount; k++) this.changedFlag[this.changedList[k]] = 0;
+    this.changedCount = 0;
+    this.dstarGoal = -1;
+  }
+
+  /** Plans from the cell the drone occupies; only a 'replan' counts toward the stats. */
+  private plan(kind: ReplanKind): void {
+    const count = kind === 'replan';
     const cx = Math.floor(this.droneX);
     const cy = Math.floor(this.droneY);
     this.droneX = cx + 0.5;
     this.droneY = cy + 0.5;
+    // The old route is a view into planner memory that the next call overwrites: copy what is left of it.
+    const oldPath = this.pathLen > this.pathIdx ? this.path.slice(this.pathIdx, this.pathLen) : new Int32Array(0);
     const r = this.planner.computePath(cx, cy, this.goalX, this.goalY, this.mode);
     const s = this.stats;
     if (count) s.replans++;
@@ -304,7 +341,36 @@ export class Simulation {
       this.blockedFor = 0;
       if (count) this.flash = FLASH_SECONDS;
     } else this.base = 'Idle';
+    this.emitReplan(kind, r.found, r.expanded, oldPath, cx, cy);
     if (this.started && this.pathLen === 1) this.finish('reached');
+  }
+
+  /** Builds the event for the call that just finished and clears the pending change list. */
+  private emitReplan(kind: ReplanKind, found: boolean, expanded: number, oldPath: Int32Array, cx: number, cy: number): void {
+    const dstar = this.mode === 'dstar';
+    const goal = this.goalY * this.width + this.goalX;
+    const incremental = dstar && this.dstarGoal === goal;
+    this.dstarGoal = dstar ? goal : this.dstarGoal;
+    const changed = this.changedList.slice(0, this.changedCount);
+    const origin = new Int32Array(dstar ? 1 + changed.length : 1);
+    if (dstar) { origin[0] = goal; origin.set(changed, 1); } else origin[0] = cy * this.width + cx;
+    for (let k = 0; k < this.changedCount; k++) this.changedFlag[this.changedList[k]] = 0;
+    this.changedCount = 0;
+    this.replanSeq++;
+    this.lastReplan = {
+      seq: this.replanSeq,
+      kind,
+      mode: this.mode,
+      found,
+      expanded,
+      incremental,
+      changed,
+      origin,
+      heat: this.planner.heat().slice(),
+      oldPath,
+      newPath: found ? this.path.slice(0, this.pathLen) : new Int32Array(0),
+      timestamp: this.clock(),
+    };
   }
 
   private advance(dt: number): void {
@@ -345,6 +411,7 @@ export class Simulation {
   private movePatrol(i: number): void {
     const p = this.planner;
     p.setCell(this.patrolX[i], this.patrolY[i], this.patrolUnder[i] as CellValue);
+    this.markChanged(this.patrolY[i] * this.width + this.patrolX[i]);
     for (let attempt = 0; attempt < 2; attempt++) {
       const nx = this.patrolX[i] + this.patrolDX[i];
       const ny = this.patrolY[i] + this.patrolDY[i];
@@ -358,6 +425,7 @@ export class Simulation {
     }
     this.patrolUnder[i] = p.getCell(this.patrolX[i], this.patrolY[i]);
     p.setCell(this.patrolX[i], this.patrolY[i], 1);
+    this.markChanged(this.patrolY[i] * this.width + this.patrolX[i]);
   }
 
   private finish(status: 'reached' | 'blocked'): void {
