@@ -5,7 +5,9 @@ time. The pathfinding engine is C++17 (A* and incremental D* Lite) compiled to
 WebAssembly; a React + TypeScript + Canvas app renders it at 60 FPS; a Fastify +
 PostgreSQL service stores scenarios and mission telemetry.
 
-> Status: under active development. See `docs/WORKFLOW.html` for the delivery plan.
+![Sandbox screenshot](docs/screenshot.png)
+
+Delivery plan and per-workstream reports: `docs/WORKFLOW.html`, `docs/reports/`.
 
 ## Architecture
 
@@ -52,7 +54,10 @@ docker compose up -d            # PostgreSQL + API on :3001
 cd web && npm install && npm run dev
 ```
 
-Open http://localhost:5173. Without the API the sandbox still works; only save/load and
+If port 3001 or 5432 is taken, override them: `API_PORT=3101 DB_PORT=55432 docker compose up -d`
+and start the web app with `API_TARGET=http://localhost:3101 npm run dev`.
+
+Open http://localhost:5173. API docs (OpenAPI / Swagger UI) are at http://localhost:3001/docs. Without the API the sandbox still works; only save/load and
 run history are disabled. Without the Wasm build the app falls back to the TypeScript
 planner and the HUD shows `TS Fallback`.
 
