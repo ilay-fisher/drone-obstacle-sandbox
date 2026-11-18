@@ -24,8 +24,7 @@ export function TelemetryHud({ engine, stats, apiOnline, demo = false }: Props) 
     ['Total Replans', String(stats.replans)],
   ];
   return (
-    <div className="hud">
-      <h3>Telemetry</h3>
+    <section className="hud" aria-label="Telemetry">
       <div className="hud-status">
         <span className="hud-label">Mission Status</span>
         <span className={`status ${statusClass}`}><i className="lamp" />{stats.status}</span>
@@ -45,6 +44,6 @@ export function TelemetryHud({ engine, stats, apiOnline, demo = false }: Props) 
           <span className="chip-k">API</span>{demo ? 'demo (no backend)' : apiOnline ? 'online' : 'offline'}
         </span>
       </div>
-    </div>
+    </section>
   );
 }

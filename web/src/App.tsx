@@ -123,9 +123,13 @@ export function App() {
         <span>Real-time A* and D* Lite replanning with LiDAR</span>
       </header>
       <main>
-        <section className="stage"><DroneCanvas sim={sim} brush={brush} showHeat={showHeat} showLidar={showLidar} /></section>
-        <aside>
-          <TelemetryHud engine={sim.planner.mode} stats={stats} apiOnline={apiOnline} demo={isDemoMode()} />
+        <div className="left">
+          <div className="deck">
+            <section className="stage"><DroneCanvas sim={sim} brush={brush} showHeat={showHeat} showLidar={showLidar} /></section>
+            <TelemetryHud engine={sim.planner.mode} stats={stats} apiOnline={apiOnline} demo={isDemoMode()} />
+          </div>
+        </div>
+        <aside className="console">
           <ControlPanel
             brush={brush} onBrush={setBrush}
             mode={mode} onMode={setMode}
