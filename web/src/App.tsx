@@ -23,6 +23,12 @@ import { buildPreset, type PresetName } from './scenarios/presets';
 const GRID_W = 48;
 const GRID_H = 30;
 
+/** Step 1 of the intro (the city is still being painted): the telemetry shows its idle state, never a plan the intro has not made. */
+const IDLE_STATS: SimStats = {
+  status: 'Idle', replans: 0, lastLatencyMs: 0, maxLatencyMs: 0, totalLatencyMs: 0,
+  planCalls: 0, lastExpanded: 0, totalExpanded: 0, pathCost: 0, elapsedMs: 0,
+};
+
 /** Root component: owns the simulation instance and wires UI state to it. */
 export function App() {
   const [sim, setSim] = useState<Simulation | null>(null);
@@ -46,6 +52,8 @@ export function App() {
   const animatedIntro = introDecision.show && introDecision.mode === 'animated';
   /** True while the intro paints the city: the renderer plays no search events. Starts true so the first frame is not the old map. */
   const quietRef = useRef(animatedIntro);
+  /** True while the intro's first D* Lite plan (a full search) runs quietly: the route follows, no flood. */
+  const calmRef = useRef(false);
   const speedRef = useRef(1);
 
   useEffect(() => {
@@ -113,7 +121,7 @@ export function App() {
   speedRef.current = speed;
   const intro = useIntro({
     sim, gridW: GRID_W, gridH: GRID_H, auto: introDecision.show ? introDecision.mode : null,
-    setMode, setPlaying, quietRef,
+    setMode, setPlaying, quietRef, calmRef,
     restoreSpeed: () => { if (sim) sim.speed = speedRef.current; },
   });
   const replayIntro = () => intro.replay(prefersReducedMotion() ? 'card' : 'animated');
@@ -188,10 +196,10 @@ export function App() {
       <main>
         <div className="left">
           <div className="deck">
-            <section className="stage"><DroneCanvas sim={sim} brush={brush} showHeat={showHeat} showLidar={showLidar} quietRef={quietRef} />
+            <section className="stage"><DroneCanvas sim={sim} brush={brush} showHeat={showHeat} showLidar={showLidar} quietRef={quietRef} calmRef={calmRef} />
               <IntroPill ui={intro.ui} />
             </section>
-            <TelemetryHud engine={sim.planner.mode} stats={stats} apiOnline={apiOnline} demo={isDemoMode()} />
+            <TelemetryHud engine={sim.planner.mode} stats={intro.ui.status === 'running' && intro.ui.step === 0 ? IDLE_STATS : stats} apiOnline={apiOnline} demo={isDemoMode()} />
           </div>
         </div>
         <aside className="console" ref={consoleRef}>

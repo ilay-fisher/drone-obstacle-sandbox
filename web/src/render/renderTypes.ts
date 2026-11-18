@@ -11,6 +11,8 @@ export interface DrawOpts {
   showLidar: boolean;
   /** While true the search layer plays no replan events (the intro is still painting the city). */
   quiet?: boolean;
+  /** While true the search layer adopts new plans silently: the route follows, but no flood, glow or chip plays (the intro's quiet D* Lite plan). */
+  calm?: boolean;
 }
 
 /** Everything a slot needs to know about the canvas: sizes in CSS px, the DPR and the palette. */

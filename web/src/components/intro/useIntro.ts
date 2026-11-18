@@ -3,7 +3,7 @@ import type { PlanMode } from '../../engine/plannerBridge';
 import type { Simulation, SimState } from '../../engine/simulation';
 import { defaultStorage, markIntroSeen, type IntroMode } from '../../intro/introStorage';
 import { IntroRunner } from '../../intro/introRunner';
-import { captionAt, phaseAt, stepIndexAt } from '../../intro/introScript';
+import { INTRO_STEPS, OUTRO_CAPTION, OUTRO_MS } from '../../intro/introScript';
 import { buildPreset } from '../../scenarios/presets';
 
 export type IntroStatus = 'idle' | 'running' | 'outro' | 'card';
@@ -27,6 +27,8 @@ export interface UseIntroArgs {
   restoreSpeed: () => void;
   /** Read by the render loop every frame: true while the city is still being painted. */
   quietRef: { current: boolean };
+  /** Read by the render loop every frame: true while D* Lite's first (full) plan runs quietly. */
+  calmRef: { current: boolean };
 }
 
 const IDLE: IntroUi = { status: 'idle', step: -1, caption: null };
@@ -39,7 +41,7 @@ const MAX_FRAME_MS = 100;
  * skip, finish and unmount, so nothing is left running.
  */
 export function useIntro(a: UseIntroArgs) {
-  const { sim, gridW, gridH, auto, quietRef } = a;
+  const { sim, gridW, gridH, auto, quietRef, calmRef } = a;
   const [ui, setUi] = useState<IntroUi>(IDLE);
   const uiRef = useRef(ui);
   uiRef.current = ui;
@@ -63,6 +65,7 @@ export function useIntro(a: UseIntroArgs) {
       setMode: (m: PlanMode) => argsRef.current.setMode(m),
       setPlaying: (on: boolean) => argsRef.current.setPlaying(on),
       setQuiet: (q: boolean) => { quietRef.current = q; },
+      setCalm: (c: boolean) => { calmRef.current = c; },
       restore: () => argsRef.current.restoreSpeed(),
     };
     const r = new IntroRunner(sim, host, city, empty);
@@ -75,21 +78,21 @@ export function useIntro(a: UseIntroArgs) {
     r.start();
     let t = 0;
     let last = performance.now();
-    setUi({ status: 'running', step: 0, caption: captionAt(0) });
+    let outroAt = -1;
+    setUi({ status: 'running', step: 0, caption: INTRO_STEPS[0].caption });
     const frame = (now: number) => {
       t += Math.min(Math.max(now - last, 0), MAX_FRAME_MS);
       last = now;
-      r.update(t);
-      const phase = phaseAt(t);
-      if (phase === 'steps') {
-        const step = stepIndexAt(t);
-        if (step !== uiRef.current.step) setUi({ status: 'running', step, caption: captionAt(t) });
-      } else if (phase === 'outro') {
-        if (uiRef.current.status !== 'outro') {
+      if (outroAt < 0) {
+        r.update(t);
+        if (r.done) {
+          outroAt = t;
           r.finish();
-          setUi({ status: 'outro', step: -1, caption: captionAt(t) });
+          setUi({ status: 'outro', step: -1, caption: OUTRO_CAPTION });
+        } else if (r.step !== uiRef.current.step) {
+          setUi({ status: 'running', step: r.step, caption: INTRO_STEPS[r.step].caption });
         }
-      } else {
+      } else if (t - outroAt >= OUTRO_MS) {
         setUi(IDLE);
         raf.current = 0;
         return;
@@ -97,7 +100,7 @@ export function useIntro(a: UseIntroArgs) {
       raf.current = requestAnimationFrame(frame);
     };
     raf.current = requestAnimationFrame(frame);
-  }, [sim, gridW, gridH, quietRef, stopLoop]);
+  }, [sim, gridW, gridH, quietRef, calmRef, stopLoop]);
 
   /** Esc or a click: leave a normal state (Urban Canyon, A*, paused, console lit). */
   const skip = useCallback(() => {

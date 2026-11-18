@@ -4,6 +4,7 @@ import type { SimState } from '../engine/simulation';
 import { buildPreset } from '../scenarios/presets';
 import { DRAW_MS, DRAW_START_MS, TOTAL_MS as REPLAN_TOTAL_MS } from '../render/replanTimeline';
 import { INTRO_SPEED, IntroRunner, type IntroHost, type IntroSim } from './introRunner';
+import { pickWall } from './introCues';
 import { CUES } from './introScript';
 import { EVENT_TIMEOUT_MS, HARD_CAP_MS, SEQUENCE } from './introSequence';
 
@@ -18,6 +19,7 @@ interface Fake extends IntroSim {
   pump(t: number): void;
   latency: number;
   never: boolean;
+  replanSeq: number;
   /** Times at which a planning call finished. */
   planned: number[];
   stamp: (s: string) => void;
@@ -254,7 +256,7 @@ describe('IntroRunner', () => {
     const r = new IntroRunner(sim, host, city(), empty());
     r.start();
     sim.log.length = 0;
-    r.update(20000);
+    r.update(15000);
     expect(sim.log.filter((l) => l === 'import:city').length).toBe(1);
     expect(sim.log.includes('playing:true')).toBe(false);
     expect(sim.log.includes('mode:dstar')).toBe(false);

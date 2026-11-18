@@ -92,3 +92,88 @@ export function paintBatches(cells: Int32Array, width: number, height: number, m
   }
   return out;
 }
+
+/** What `pickWall` needs to know: the live grid (1 = wall), the route and the drone's place on it. */
+export interface WallQuery {
+  grid: Uint8Array;
+  width: number;
+  height: number;
+  path: Int32Array;
+  pathIdx: number;
+  pathLen: number;
+  /** The drone's LiDAR range in cells. A wall inside it is seen (and replanned around) at once. */
+  lidarRadius: number;
+}
+
+/** Wall lengths tried, longest first: odd lengths are centred on a route cell. */
+const WALL_LENS = [5, 3] as const;
+/** The ahead distance (cells along the route) we like best; candidates are tried nearest to it first. */
+const PREFERRED_AHEAD = 5;
+
+interface Tier { a0: number; a1: number; clear: boolean; lens: readonly number[] }
+
+/**
+ * A deliberate scripted obstacle: a short straight wall perpendicular to the route, centred on
+ * a route cell on open street, ahead of the drone inside LiDAR range. Every wall cell is free
+ * ground. In the first tiers each cell is also at least one cell from any building (so the
+ * wall reads as a barrier placed in the street, never as an extension of a building edge) and
+ * the street stays passable around its ends. The later tiers relax range, clearance and length
+ * for narrow streets, and the last one falls back to the old straight-across wall. Pure and
+ * deterministic; empty only when there is no usable route.
+ */
+export function pickWall(q: WallQuery): { x: number; y: number }[] {
+  const { grid, width: w, height: h, path } = q;
+  const len = Math.min(q.pathLen, path.length);
+  if (len < 4) return [];
+  const last = len - 3;
+  const goal = path[len - 1];
+  const reach = Math.max(4, Math.floor(q.lidarRadius));
+  const tiers: Tier[] = [
+    { a0: 4, a1: reach, clear: true, lens: WALL_LENS },
+    { a0: 3, a1: reach + 5, clear: true, lens: WALL_LENS },
+    { a0: 3, a1: reach + 5, clear: false, lens: [5, 3, 2] },
+  ];
+  const free = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && grid[y * w + x] === 0;
+  const building = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && grid[y * w + x] === 1;
+  for (const t of tiers) {
+    const aheads: number[] = [];
+    for (let a = t.a0; a <= t.a1; a++) aheads.push(a);
+    aheads.sort((p, r) => Math.abs(p - PREFERRED_AHEAD) - Math.abs(r - PREFERRED_AHEAD) || p - r);
+    for (const a of aheads) {
+      const i = q.pathIdx + a;
+      if (i > last || i < 1) continue;
+      const c = path[i];
+      const cx = c % w;
+      const cy = (c / w) | 0;
+      const p = path[i - 1];
+      const n = path[Math.min(i + 1, len - 1)];
+      const dx = (n % w) - (p % w);
+      const dy = ((n / w) | 0) - ((p / w) | 0);
+      const vertical = Math.abs(dx) >= Math.abs(dy); // a horizontal-ish route is crossed by a vertical wall
+      for (const L of t.lens) {
+        const lo = -Math.floor((L - 1) / 2);
+        const hi = Math.floor(L / 2);
+        const cells: { x: number; y: number }[] = [];
+        let ok = true;
+        for (let k = lo; k <= hi && ok; k++) {
+          const x = vertical ? cx : cx + k;
+          const y = vertical ? cy + k : cy;
+          if (!free(x, y) || y * w + x === goal) { ok = false; break; }
+          if (t.clear) {
+            for (let oy = -1; oy <= 1 && ok; oy++) for (let ox = -1; ox <= 1; ox++) if (building(x + ox, y + oy)) { ok = false; break; }
+          }
+          cells.push({ x, y });
+        }
+        if (!ok) continue;
+        if (!t.clear) {
+          // leave a way round: at least one end must open onto free ground
+          const e1 = vertical ? free(cx, cy + lo - 1) : free(cx + lo - 1, cy);
+          const e2 = vertical ? free(cx, cy + hi + 1) : free(cx + hi + 1, cy);
+          if (!e1 && !e2) continue;
+        }
+        return cells;
+      }
+    }
+  }
+  return blockCellsAhead(path, q.pathIdx, len, w, h, PREFERRED_AHEAD, 1);
+}

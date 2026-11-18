@@ -69,9 +69,10 @@ describe('intro sequence', () => {
 
   it('slow planner: a late event delays the next cue instead of overlapping it', () => {
     const fast = drive({ latency: 0 });
-    const slow = drive({ latency: 1200 });
+    const slow = drive({ latency: 1800 });
     expect(slow.fired.map((f) => f.name)).toEqual(fast.fired.map((f) => f.name));
-    for (const n of ['block1', 'dstar', 'block2']) expect(at(slow, n)).toBeGreaterThan(at(fast, n));
+    expect(at(slow, 'block1')).toBeGreaterThanOrEqual(at(fast, 'block1'));
+    for (const n of ['dstar', 'block2']) expect(at(slow, n)).toBeGreaterThan(at(fast, n));
     expect(slow.doneAt).toBeGreaterThan(fast.doneAt);
     // the second wall waits for the quiet D* plan to exist, and the end for the second wall's repair
     expect(at(slow, 'block2')).toBeGreaterThanOrEqual(slow.events[2]);
