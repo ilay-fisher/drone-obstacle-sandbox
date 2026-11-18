@@ -32,6 +32,10 @@ describe('buildPalette', () => {
     expect(p.route).toBe('#ff5a1f');
     expect(p.goal).toBe('#ffb347');
   });
+  it('exposes the status-only green for the landed pad lamp', () => {
+    expect(buildPalette(get).pass).toBe('#7be0b0');
+    expect(buildPalette(() => '').pass).toBe('#7be0b0');
+  });
   it('derives translucent colours from the rgb tokens', () => {
     const p = buildPalette(get);
     expect(p.dot).toBe('rgba(236,232,223,0.1)');
