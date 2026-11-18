@@ -141,7 +141,7 @@ class TsPlanner implements Planner {
   }
 
   setCell(x: number, y: number, v: CellValue): void {
-    if (!this.inb(x, y)) return;
+    if (!this.inb(x, y) || v < 0 || v > 2) return;
     const i = y * this.width + x;
     if (this.cells[i] === v) return;
     this.cells[i] = v;

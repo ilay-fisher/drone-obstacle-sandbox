@@ -49,7 +49,7 @@ interface WasmPlanner {
 interface WasmModule {
   DronePlanner: new (w: number, h: number) => WasmPlanner;
 }
-type WasmFactory = (opts: { locateFile: (file: string) => string }) => Promise<WasmModule>;
+type WasmFactory = (opts: { locateFile: (file: string) => string; wasmBinary?: ArrayBuffer }) => Promise<WasmModule>;
 
 /** A buffer view is detached when Wasm memory grows; re-fetch it in that case. */
 function live<T extends Uint8Array | Int32Array>(view: T | null, fetch: () => T): T {
@@ -93,13 +93,15 @@ type Loader = () => Promise<unknown>;
 /**
  * Builds a planner from explicit module and asset maps (the shape `import.meta.glob`
  * produces). Split from `createPlanner` so tests can exercise the fallback paths without
- * depending on whether the Wasm artifacts are present in the working tree.
+ * depending on whether the Wasm artifacts are present in the working tree. `wasmBinary`
+ * lets Node-based tests supply the module bytes instead of fetching them.
  */
 export async function createPlannerFrom(
   modules: Record<string, Loader>,
   wasmUrls: Record<string, Loader>,
   width: number,
   height: number,
+  wasmBinary?: ArrayBuffer,
 ): Promise<Planner> {
   const loader = Object.values(modules)[0];
   if (!loader) {
@@ -111,6 +113,7 @@ export async function createPlannerFrom(
     const urlLoader = Object.values(wasmUrls)[0];
     const wasmUrl = urlLoader ? ((await urlLoader()) as string) : null;
     const mod = await factory({
+      wasmBinary,
       locateFile: (file) => (wasmUrl && file.endsWith('.wasm') ? wasmUrl : file),
     });
     log.info('engine: C++ Wasm planner loaded');
