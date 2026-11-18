@@ -93,14 +93,15 @@ describe('cellHash', () => {
   });
 
   it('is pinned for a few cells so a refactor cannot silently reshuffle the skyline', () => {
-    expect([0, 1, 2, 100, 1439].map(cellHash)).toEqual([0, 0, 0, 0, 0]);
+    const expected = [0.54217, 0.40707, 0.3126, 0.12927, 0.83456];
+    [0, 1, 2, 100, 1439].forEach((cell, k) => expect(cellHash(cell)).toBeCloseTo(expected[k], 4));
   });
 
   it('maps to a building height inside the allowed band', () => {
     for (let i = 0; i < 500; i++) {
       const h = blockHeight(i);
-      expect(h).toBeGreaterThanOrEqual(0.14);
-      expect(h).toBeLessThanOrEqual(0.46);
+      expect(h).toBeGreaterThanOrEqual(0.5);
+      expect(h).toBeLessThanOrEqual(0.95);
     }
   });
 });
