@@ -31,12 +31,12 @@ Coordination with PR 3: no edit to `searchLayer`. The pulse is 400 ms (inside th
 
 | Engine (HUD) | Planner | frames | frame p50 | p95 | max | work p50 | work p95 | work max |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| C++ Wasm | A* | 353 | 16.7 | 16.8 | 16.8 | 0.20 | 0.90 | 10.1 |
-| C++ Wasm | D* Lite | 351 | 16.7 | 16.8 | 16.8 | 0.20 | 0.90 | 6.4 |
-| TS Fallback | A* | 353 | 16.7 | 16.7 | 16.8 | 0.20 | 1.00 | 6.1 |
-| TS Fallback | D* Lite | 354 | 16.7 | 16.7 | 16.8 | 0.20 | 0.90 | 7.7 |
+| C++ Wasm | A* | 379 | 16.7 | 16.7 | 16.8 | 0.20 | 1.00 | 8.5 |
+| C++ Wasm | D* Lite | 368 | 16.7 | 16.7 | 16.8 | 0.20 | 0.90 | 7.3 |
+| TS Fallback | A* | 367 | 16.7 | 16.7 | 16.8 | 0.20 | 1.00 | 10.2 |
+| TS Fallback | D* Lite | 394 | 16.7 | 16.8 | 16.8 | 0.20 | 1.00 | 9.0 |
 
-Times in ms; frame time is locked to the 60 Hz display. Per-frame JS work never exceeds ~10 ms (the max is the frame that builds sprites for a new replan). The HUD read "Engine C++ Wasm" in all screenshots and "TS Fallback" in the wasm-blocked runs. Raw: `docs/redesign/pr4/frametimes.json`.
+Times in ms; frame time is locked to the 60 Hz display. Per-frame JS work never exceeds ~10 ms (re-measured after review round 1) (the max is the frame that builds sprites for a new replan). The HUD read "Engine C++ Wasm" in all screenshots and "TS Fallback" in the wasm-blocked runs. Raw: `docs/redesign/pr4/frametimes.json`.
 
 ## Evidence (`docs/redesign/pr4/`)
 
@@ -46,7 +46,8 @@ Times in ms; frame time is locked to the 60 Hz display. Per-frame JS work never 
 
 1. Round 1. Exploration frames showed the body arms vanishing into the dark map (arms were 50% black on a dark ground). Arms are now a lit slate mix so the quad silhouette reads at ~38 px.
 2. Round 2. First blockage capture showed no pulse. Cause was my test wall 7 cells ahead, outside the 6-cell LiDAR radius, so the pulse correctly did not fire. Moved the wall inside the radius; the ring now appears at the replan instant and finishes before the flood does.
-3. Tooling: a time-guessed closeup crop missed the drone after the first turn, so the turn sheet is cut from the recorded video instead.
+3. Review round 1 (manager). Rotors were light-grey translucent discs and read as a toy. They are now dark graphite (wall colour, 12% darker) with a thin dark rim, a faint top-left bevel highlight, a very low alpha blur wedge, and a smaller radius (0.31 cell, was 0.38), so the shell and the orange nav light dominate. The LiDAR fan was a thin wedge: trail alphas roughly doubled (lead 0.6, floor 0.03), the amber leading edge is thicker and brighter, still one cached sprite. The landing lamp was barely visible: the green glow is 1.5x larger and much stronger, and the green ring is thicker at 1.15 cell with a faint outer ring at 1.6. The pulse's wide halo stroke turned into a filled disc at small radius: it is now a thin soft halo plus a thin bright rim, starting at 1 cell. The whitish blob in the earlier blockage frame was the PR 3 A* flood origin, not the pulse; the pulse is now a ring only. The hover tooltip is hidden by CSS in the capture script and the pointer is moved off the map.
+4. Tooling: a time-guessed closeup crop missed the drone after the first turn, so the turn sheet is cut from the recorded video instead.
 
 ## Still weak
 
@@ -55,4 +56,6 @@ Times in ms; frame time is locked to the 60 Hz display. Per-frame JS work never 
 - LiDAR ticks are small and only visible at DPR 2 or in closeups.
 - Rotor blur is a static conic sprite, not true per-frame blur.
 - Perf measured in headless Chromium at DPR 1 on one machine; DPR 2 and low-end phones not measured.
+- Dark graphite rotors are low contrast on the dark ground; at 390 px the quad reads mostly by the shell, nav light and shadow.
+- The A* flood origin (PR 3) is a bright white blob right as the pulse ring plays; it is not mine but it is the brightest thing in that frame.
 - The 390 px drone is small (~25 px); readable but quiet.

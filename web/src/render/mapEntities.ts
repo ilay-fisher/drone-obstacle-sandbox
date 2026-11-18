@@ -60,7 +60,7 @@ export class MapEntities {
     this.puck = this.makePuck(cs, dpr, colors);
     this.pad = this.makePad(cs, dpr, colors);
     this.glow = this.makeGlow(cs, dpr, colors.padGlow);
-    this.glowGo = this.makeGlow(cs, dpr, colors.glowGo);
+    this.glowGo = this.makeGlow(cs, dpr, colors.glowGo, 0.38);
   }
 
   /** Forgets glide state so pucks appear exactly on their cells next frame (map replaced). */
@@ -126,8 +126,8 @@ export class MapEntities {
     ctx.globalAlpha = (0.45 + 0.4 * b) * (1 - lamp);
     ctx.drawImage(glow, cx - gs / 2, cy - gs / 2, gs, gs);
     if (lamp > 0) {
-      ctx.globalAlpha = lamp * (0.55 + 0.35 * b);
-      ctx.drawImage(glowGo, cx - gs / 2, cy - gs / 2, gs, gs);
+      ctx.globalAlpha = lamp * (0.8 + 0.2 * b);
+      ctx.drawImage(glowGo, cx - gs * 0.75, cy - gs * 0.75, gs * 1.5, gs * 1.5);
     }
     ctx.globalAlpha = 1;
     const ps = pad.width / this.dpr;
@@ -140,10 +140,15 @@ export class MapEntities {
     ctx.stroke();
     if (lamp > 0) {
       ctx.strokeStyle = colors.lampGo;
-      ctx.globalAlpha = lamp * (0.4 + 0.5 * (1 - b));
-      ctx.lineWidth = Math.max(1.4, cs * 0.075);
+      ctx.globalAlpha = lamp * (0.75 + 0.25 * (1 - b));
+      ctx.lineWidth = Math.max(2, cs * 0.12);
       ctx.beginPath();
-      ctx.arc(cx, cy, cs * (0.95 + 0.12 * b), 0, Math.PI * 2);
+      ctx.arc(cx, cy, cs * (1.15 + 0.1 * b), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = lamp * 0.3;
+      ctx.lineWidth = Math.max(1, cs * 0.05);
+      ctx.beginPath();
+      ctx.arc(cx, cy, cs * (1.6 + 0.15 * b), 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = colors.lampGo;
       ctx.globalAlpha = lamp;
@@ -220,7 +225,7 @@ export class MapEntities {
     return cv;
   }
 
-  private makeGlow(cs: number, dpr: number, color: string): HTMLCanvasElement {
+  private makeGlow(cs: number, dpr: number, color: string, mid = 0.12): HTMLCanvasElement {
     const size = cs * 3.2;
     const cv = makeCanvas(size * dpr, size * dpr);
     const g = cv.getContext('2d');
@@ -228,7 +233,7 @@ export class MapEntities {
     const m = cv.width / 2;
     const grad = g.createRadialGradient(m, m, 0, m, m, m);
     grad.addColorStop(0, color);
-    grad.addColorStop(0.45, color.replace(/[\d.]+\)$/, '0.12)'));
+    grad.addColorStop(0.45, color.replace(/[\d.]+\)$/, `${mid})`));
     grad.addColorStop(1, color.replace(/[\d.]+\)$/, '0)'));
     g.fillStyle = grad;
     g.fillRect(0, 0, cv.width, cv.height);

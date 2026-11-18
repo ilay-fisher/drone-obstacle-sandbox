@@ -262,11 +262,12 @@ function drawPulse(ctx: CanvasRenderingContext2D, sim: Simulation, v: RenderView
   const p = pulsePhases(ageMs);
   if (!p.active) return;
   const rMax = Math.max(sim.lidarRadius, 3) * cell * 1.02;
-  const r = cell * 0.7 + p.radius * (rMax - cell * 0.7);
+  const r = cell * 1.0 + p.radius * (rMax - cell * 1.0);
   ctx.lineCap = 'butt';
   ctx.strokeStyle = pal.route;
-  ctx.globalAlpha = 0.22 * p.alpha;
-  ctx.lineWidth = cell * (0.55 * p.weight + 0.1);
+  // A thin soft halo behind the rim; never a fill.
+  ctx.globalAlpha = 0.2 * p.alpha;
+  ctx.lineWidth = cell * (0.22 * p.weight + 0.08);
   ctx.beginPath();
   ctx.arc(dx, dy, r, 0, Math.PI * 2);
   ctx.stroke();

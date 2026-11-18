@@ -83,7 +83,7 @@ export function buildMapColors(pal: Palette): MapColors {
     padRing: pal.goal,
     padGlow: withAlpha(pal.goal, 0.5),
     lampGo: pal.pass,
-    glowGo: withAlpha(pal.pass, 0.5),
+    glowGo: withAlpha(pal.pass, 0.9),
     puck: mix(pal.route, pal.stage, 0.18),
     puckHi: mix(pal.goal, pal.drone, 0.1),
     puckDeep: mix(pal.route, '#000000', 0.62),

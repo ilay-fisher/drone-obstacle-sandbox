@@ -17,7 +17,7 @@ import type { Palette } from './palette';
 
 /** Rotor centre distance from the body centre along each axis, and rotor radius, in cells. */
 export const ROTOR_OFFSET = 0.5;
-export const ROTOR_RADIUS = 0.38;
+export const ROTOR_RADIUS = 0.31;
 /** Nose position of the nav light, in cells ahead of the centre. */
 export const NAV_X = 0.47;
 
@@ -177,42 +177,56 @@ function rotorSprite(cs: number, dpr: number, pal: Palette): Sprite {
   const size = R * 2.2;
   const { sprite, g } = makeSprite(size, dpr);
   const m = size / 2;
-  const rgb = parseHex(pal.drone) ?? [236, 232, 223];
+  // Dark anodised graphite, in the stage family: flight hardware, not a toy.
+  const gr = mix(pal.wall, '#000000', 0.12);
+  const rgb = parseHex(gr) ?? [42, 50, 59];
   const col = (a: number): string => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
-  g.fillStyle = col(0.07);
+  const lightRgb = parseHex(pal.drone) ?? [236, 232, 223];
+  const hi = (a: number): string => `rgba(${lightRgb[0]},${lightRgb[1]},${lightRgb[2]},${a})`;
+  // Disc: graphite, a touch lighter toward the top left.
+  const disc = g.createLinearGradient(m - R, m - R, m + R, m + R);
+  disc.addColorStop(0, mix(gr, pal.drone, 0.1));
+  disc.addColorStop(1, mix(gr, '#000000', 0.25));
+  g.fillStyle = disc;
+  g.globalAlpha = 0.9;
   g.beginPath();
   g.arc(m, m, R, 0, Math.PI * 2);
   g.fill();
+  g.globalAlpha = 1;
   const gc = (g as CanvasRenderingContext2D & { createConicGradient?: (a: number, x: number, y: number) => CanvasGradient }).createConicGradient;
   if (typeof gc === 'function') {
-    // Two blades, each with a blur wedge trailing it for about 100 degrees.
+    // Two blades with a faint blur wedge each (low alpha, so rotation is felt, not seen).
     const grad = gc.call(g, 0, m, m);
-    grad.addColorStop(0, col(0.5));
-    grad.addColorStop(0.1, col(0.2));
-    grad.addColorStop(0.28, col(0));
-    grad.addColorStop(0.5, col(0.5));
-    grad.addColorStop(0.6, col(0.2));
-    grad.addColorStop(0.78, col(0));
-    grad.addColorStop(1, col(0.5));
+    grad.addColorStop(0, hi(0.16));
+    grad.addColorStop(0.1, hi(0.06));
+    grad.addColorStop(0.26, hi(0));
+    grad.addColorStop(0.5, hi(0.16));
+    grad.addColorStop(0.6, hi(0.06));
+    grad.addColorStop(0.76, hi(0));
+    grad.addColorStop(1, hi(0.16));
     g.fillStyle = grad;
     g.beginPath();
-    g.arc(m, m, R * 0.96, 0, Math.PI * 2);
+    g.arc(m, m, R * 0.95, 0, Math.PI * 2);
     g.fill();
-  } else {
-    g.strokeStyle = col(0.25);
-    g.lineWidth = R * 0.2;
-    g.beginPath();
-    g.arc(m, m, R * 0.7, 0, Math.PI * 2);
-    g.stroke();
   }
-  g.strokeStyle = col(0.34);
-  g.lineWidth = Math.max(0.9, cs * 0.035);
+  // Thin dark rim, then a faint bevel highlight on the top-left arc.
+  g.strokeStyle = 'rgba(0,0,0,0.5)';
+  g.lineWidth = Math.max(0.8, cs * 0.03);
   g.beginPath();
   g.arc(m, m, R * 0.97, 0, Math.PI * 2);
   g.stroke();
-  g.fillStyle = col(0.5);
+  g.strokeStyle = hi(0.5);
+  g.lineWidth = Math.max(0.8, cs * 0.03);
   g.beginPath();
-  g.arc(m, m, cs * 0.05, 0, Math.PI * 2);
+  g.arc(m, m, R * 0.93, Math.PI * 1.02, Math.PI * 1.55);
+  g.stroke();
+  g.fillStyle = col(1);
+  g.beginPath();
+  g.arc(m, m, cs * 0.06, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = hi(0.35);
+  g.beginPath();
+  g.arc(m - cs * 0.015, m - cs * 0.015, cs * 0.025, 0, Math.PI * 2);
   g.fill();
   return sprite;
 }
@@ -254,7 +268,7 @@ export function buildFanSprite(rPx: number, dpr: number, pal: Palette): Sprite {
   const m = rPx;
   const rgb = parseHex(pal.drone) ?? [236, 232, 223];
   const col = (a: number): string => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
-  const LEAD = 0.3;
+  const LEAD = 0.6;
   const gc = (g as CanvasRenderingContext2D & { createConicGradient?: (a: number, x: number, y: number) => CanvasGradient }).createConicGradient;
   g.beginPath();
   g.moveTo(m, m);
@@ -265,7 +279,7 @@ export function buildFanSprite(rPx: number, dpr: number, pal: Palette): Sprite {
     const f = FAN_RAD / (Math.PI * 2);
     // Phosphor decay: roughly exponential from the leading edge back to the tail.
     const stops = [0, 0.18, 0.4, 0.62, 0.82, 1];
-    const alphas = [0, 0.02, 0.07, 0.15, 0.26, LEAD];
+    const alphas = [0.03, 0.08, 0.15, 0.27, 0.43, LEAD];
     for (let i = 0; i < stops.length; i++) grad.addColorStop(stops[i] * f, col(alphas[i]));
     grad.addColorStop(Math.min(1, f + 0.0001), col(0));
     grad.addColorStop(1, col(0));
@@ -297,10 +311,10 @@ export function buildFanSprite(rPx: number, dpr: number, pal: Palette): Sprite {
   g.globalCompositeOperation = 'source-over';
   // Leading edge: a thin amber line, brightest near the drone.
   const edge = g.createLinearGradient(m, 0, m + rPx, 0);
-  edge.addColorStop(0, withAlpha(pal.goal, 0.7));
-  edge.addColorStop(1, withAlpha(pal.goal, 0.12));
+  edge.addColorStop(0, withAlpha(pal.goal, 0.95));
+  edge.addColorStop(1, withAlpha(pal.goal, 0.4));
   g.strokeStyle = edge;
-  g.lineWidth = Math.max(1, rPx * 0.012);
+  g.lineWidth = Math.max(1.5, rPx * 0.018);
   g.beginPath();
   g.moveTo(m, m);
   g.lineTo(m + rPx, m);
