@@ -109,6 +109,7 @@
 }
 .card-btn:focus-visible { outline: var(--focus-ring); outline-offset: 3px; }
 
+
 @media (max-width: 760px) {
   .intro-pill { bottom: 14px; gap: 8px; padding: 6px 12px 6px 10px; max-width: calc(100% - 20px); }
   .intro-pips { gap: 3px; }
@@ -116,13 +117,14 @@
   .intro-caption { font-size: 12px; line-height: 1.25; white-space: nowrap; }
   /* touch: the Esc hint gives way to a quiet "Tap to skip" on the same line */
   .skip-key { display: none; }
-  .skip-tap { display: inline; font-size: 10px; letter-spacing: 0.02em; }
+  .skip-tap { display: inline; font-size: 11px; letter-spacing: 0; }
   .intro-skip { padding-left: 8px; border-left: 1px solid rgb(var(--text-rgb) / 0.14); }
   .intro-card { padding: var(--space-4); }
   .intro-card h2 { font-size: 19px; }
   .card-steps { gap: var(--space-3); }
   .card-steps p { font-size: 12.5px; }
 }
+@media (max-width: 420px) { .intro-pill { gap: 6px; padding: 6px 10px 6px 8px; } .intro-pips { display: none; } .intro-skip { padding-left: 6px; } }
 
 @media (prefers-reduced-motion: reduce) {
   .console, .intro-pips i { transition: none; }

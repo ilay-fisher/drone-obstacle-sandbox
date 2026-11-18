@@ -8,7 +8,7 @@ Fixes the "still weak" list left by PR 6 (`docs/reports/ui-intro.md`). Branch `f
 2. **Honest step 4.** The `dstar` cue switches to D* Lite with the new renderer `calm` flag on: its first call is a from-scratch search and the renderer adopts the plan silently (route follows, no flood, glow or chip). The second wall then triggers the only visible flood, a real incremental repair. The chip reads "repaired 25 cells" and the HUD shows the real numbers of each call.
 3. **Deliberate walls.** `pickWall` in `introCues.ts` (pure): 3 or 5 cells, straight, perpendicular to the route, centred on a route cell, all cells free and at least 1 cell from any building, ahead of the drone within LiDAR range. Tiers relax the range, the clearance and then the length (and keep one end open); the last fallback is the old straight-across wall.
 4. **Clean step 1 readout.** While step 1 runs the HUD gets a constant idle state (zeros, "Idle"). No previous values, no fake numbers; real values return with the first intro replan.
-5. **Mobile skip hint.** Under 760 px the pill shows "Tap to skip" (10 px, a hairline divider); desktop keeps "Esc skip". It fits on one line with the caption at 390 (checked in step 1 and 3 stills).
+5. **Mobile skip hint.** Under 760 px the pill shows "Tap to skip" (11 px, a hairline divider; the step dots hide at 420 px and below to make room); desktop keeps "Esc skip". It fits on one line with the caption at 390 (checked in step 1 and 3 stills).
 6. **Reduced-motion card art.** Four static 240x150 inline SVG panels built from shared gradients and blur filters: rounded relief buildings (top-left light, lower-right contact shadow), orange route with soft glow, paper-white A* region, deep-orange D* repair region, drone glyph, orange goal ring. No motion, no canvas.
 
 Untouched: `cpp/`, the planner API, `server/`, `droneLayer.ts` and the drone modules. Renderer change is additive (`calm` option, `adopt` and `setRoute` in `searchLayer.ts`).
@@ -41,7 +41,7 @@ Timing on a normal machine (Playwright timeline): captions at about 0, 2.4, 5.0 
 - Step 1 buildings are still mid-drop for the first 1.5 s by design; only the later still is clean.
 - The slow-planner proof is a 6x CPU throttle, not a planner that really takes seconds; the sequencer tests cover the long latencies.
 - Reduced-motion card is schematic geometry, not a render of the live canvas, so it will not follow future map style changes by itself.
-- "Tap to skip" is 10 px text; the whole pill is the tap target but it is a small one.
+- "Tap to skip" is 11 px text; the whole pill is the tap target but it is a small one.
 
 ## Evidence (`docs/redesign/pr8/`)
 
