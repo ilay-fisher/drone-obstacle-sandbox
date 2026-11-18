@@ -18,6 +18,9 @@ Vite + React 18 + TypeScript (strict) app under `web/`, with Vitest.
 - The first plan after reset is not counted as a replan; edits, obstructions and mode switches are.
 - vitest 3 (not 2) so its bundled vite matches vite 6 types.
 
+- The Vite dev proxy target is configurable: `API_TARGET=http://localhost:3101 npm run dev` (default `http://localhost:3001`).
+- 4xx responses (400 bad id, 404 unknown scenario or run scenarioId) surface as `ApiError` with `offline=false` and the server message; only network failures and timeouts count as offline.
+
 ## Tests
 39 Vitest tests: planner optimal costs, corner cutting, wind trade-off both ways, A* == D* Lite on 30 seeded maps, D* repair, unreachable goal, heat, LiDAR cases; simulation; API client (base64, offline); bridge fallbacks; and a Wasm vs TS cost parity test that loads the real `planner.wasm` in Node via `wasmBinary` (skipped automatically if the artifact is absent).
 
